@@ -1,0 +1,259 @@
+---
+title: "Plex Media Server on Ubuntu"
+description: "Stop paying Netflix. Set up your own media server that actually works."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "2-3 hours"
+ukSpecific: true
+lastUpdated: "2024-08-12"
+testedOn: ["Ubuntu 22.04", "Ubuntu 20.04"]
+tags: ["plex", "media-server", "streaming", "ubuntu", "uk"]
+---
+
+# Plex Media Server on Ubuntu
+
+## TL;DR
+Set up your own Netflix that you control, with all your media accessible anywhere. Fuck subscription services.
+
+## What You Need
+
+- **Hardware**: Any computer with 4GB+ RAM (Raspberry Pi 4 works for direct play)
+- **Software**: Ubuntu 22.04 or 20.04 (this guide), SSH access
+- **Internet**: Stable connection for remote access
+- **Storage**: External HDD/SSD for your media (USB 3.0 recommended)
+- **Time**: 2-3 hours including troubleshooting
+- **Cost**: £0/month (one-time hardware cost)
+- **Skills**: Basic command line comfort
+
+## Why Plex Over Alternatives?
+
+**Plex Pros:**
+- Works with every device (Smart TVs, phones, consoles)
+- Automatic metadata and artwork
+- Remote access that actually works
+- User management for family
+
+**Plex Cons:**
+- Requires account creation (privacy concern)
+- Some features locked behind Plex Pass
+- Phones home to Plex servers
+
+**Alternatives considered:** Jellyfin (open source, harder setup), Emby (paid), Kodi (local only).
+
+## The Setup
+
+### Step 1: Update Your System
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+**What this does**: Gets latest security patches. Always do this first.
+
+**Expected output**: Long list of packages updating. Reboot if kernel updated.
+
+### Step 2: Create Media Directories
+
+```bash
+sudo mkdir -p /media/plex/{movies,tv,music}
+sudo chown -R $USER:$USER /media/plex
+```
+
+**What this does**: Creates organized folders for your content with proper permissions.
+
+### Step 3: Mount Your External Storage
+
+Find your drive:
+```bash
+sudo fdisk -l
+```
+
+**Look for**: Your external drive (usually `/dev/sdb1` or similar). Note the device name.
+
+Mount it permanently:
+```bash
+# Replace /dev/sdb1 with your actual drive
+sudo mkdir /mnt/external
+sudo mount /dev/sdb1 /mnt/external
+
+# Make it permanent
+echo '/dev/sdb1 /mnt/external ext4 defaults 0 0' | sudo tee -a /etc/fstab
+```
+
+**Screenshot needed**: Show `fdisk -l` output with drive highlighted.
+
+### Step 4: Install Plex Media Server
+
+Add Plex repository:
+```bash
+curl https://downloads.plex.tv/plex-keys/PlexSign.key | sudo apt-key add -
+echo deb https://downloads.plex.tv/repo/deb public main | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
+```
+
+Install Plex:
+```bash
+sudo apt update
+sudo apt install plexmediaserver -y
+```
+
+**What this does**: Downloads and installs Plex from official repository.
+
+Start and enable Plex:
+```bash
+sudo systemctl start plexmediaserver
+sudo systemctl enable plexmediaserver
+```
+
+Verify it's running:
+```bash
+sudo systemctl status plexmediaserver
+```
+
+**Expected output**: Should show "active (running)" in green.
+
+### Step 5: Access Plex Web Interface
+
+Open your browser and go to:
+```
+http://YOUR_SERVER_IP:32400/web
+```
+
+**Find your server IP:**
+```bash
+hostname -I | awk '{print $1}'
+```
+
+**What you'll see**: Plex setup wizard. Sign up for free Plex account (unfortunately required).
+
+### Step 6: Configure Libraries
+
+1. Click "Add Library"
+2. Choose "Movies" → Browse → `/media/plex/movies`
+3. Choose "TV Shows" → Browse → `/media/plex/tv`  
+4. Choose "Music" → Browse → `/media/plex/music`
+
+**Tip**: If you see permission errors, run:
+```bash
+sudo chown -R plex:plex /media/plex
+```
+
+## Security & Privacy Notes
+
+- **Data Collection**: Plex collects viewing statistics and shares with studios. Can't be fully disabled.
+- **Account Required**: Plex requires online account even for local streaming. Privacy trade-off.
+- **Remote Access**: Uses Plex relay servers by default. Can be disabled for paranoid users.
+- **Updates**: Auto-updates enabled by default. Check release notes for breaking changes.
+
+**Disable Plex relay (optional):**
+Settings → Network → "Enable Relay" → Disable
+
+## When It Goes Wrong
+
+### "Server not found" errors
+**Problem**: Can't access Plex web interface
+**Fixes:**
+1. Check if service is running: `sudo systemctl status plexmediaserver`
+2. Restart service: `sudo systemctl restart plexmediaserver`
+3. Check firewall: `sudo ufw allow 32400`
+4. Verify IP address: `hostname -I`
+
+### Libraries don't show content
+**Problem**: Added media but doesn't appear
+**Fixes:**
+1. Check permissions: `ls -la /media/plex/`
+2. Fix ownership: `sudo chown -R plex:plex /media/plex/`
+3. Scan library: Settings → Libraries → Scan Library Files
+4. Check file formats: Plex supports MP4, MKV, AVI. Avoid WMV.
+
+### External access not working
+**Problem**: Can't stream outside home network
+**Fixes:**
+1. **UK Router Issues**: BT/Sky/Virgin routers often block this
+2. Port forward 32400 in router settings
+3. Use dynamic DNS (DuckDNS recommended)
+4. Enable UPnP in Plex settings (Settings → Network)
+
+**UK-specific router guides:**
+- BT Hub: Advanced → Port Forwarding → Add rule (32400, both TCP/UDP)
+- Sky Hub: Advanced → Port Forwarding → Gaming/App sharing
+- Virgin Media: Advanced → Port Forwarding → Manual
+
+### Transcoding issues (video stuttering)
+**Problem**: Videos buffer or won't play on some devices
+**Fixes:**
+1. **Weak hardware**: Raspberry Pi struggles with transcoding
+2. Lower quality settings: Settings → Transcoder → Lower quality
+3. Direct play when possible: Convert media to MP4 H.264
+4. Consider Intel QuickSync or NVIDIA hardware acceleration
+
+## Making It Better
+
+### Hardware Acceleration
+If you have Intel CPU with QuickSync:
+```bash
+# Add plex user to video group
+sudo usermod -a -G video plex
+sudo systemctl restart plexmediaserver
+```
+
+Enable in Plex: Settings → Transcoder → Hardware Acceleration → Intel QuickSync
+
+### Automatic Media Organization
+Install FileBot for renaming:
+```bash
+sudo apt install openjdk-11-jre-headless
+wget -O filebot.deb https://get.filebot.net/filebot/FileBot_4.9.6/FileBot_4.9.6_amd64.deb
+sudo dpkg -i filebot.deb
+```
+
+### Remote Access Without Port Forwarding
+Use Cloudflare Tunnel (separate guide):
+- No router configuration needed
+- Free tier available
+- Better security than port forwarding
+
+### Storage Optimization
+Use mergerfs for multiple drives:
+```bash
+sudo apt install mergerfs
+# Combines multiple drives into single mount point
+```
+
+## UK-Specific Considerations
+
+### ISP Blocking
+- **Virgin Media**: May throttle streaming traffic during peak hours
+- **BT**: CGNAT on some connections prevents port forwarding
+- **Sky**: Parental controls can block Plex domains
+
+**Solutions:**
+- Contact ISP for static IP if on CGNAT
+- Use VPN or tunnel for consistent access
+- Disable ISP-provided parental filtering
+
+### Legal Considerations
+- **Personal Use**: Streaming your own content is legal
+- **Sharing**: Don't share libraries with friends outside household
+- **Content**: Only stream media you legally own
+- **Recording**: TV recording for personal use is legal under UK law
+
+### Power Costs
+Running 24/7 at UK electricity rates:
+- **Raspberry Pi 4**: ~£15/year
+- **Mini PC (50W)**: ~£80/year  
+- **Old Desktop (200W)**: ~£320/year
+
+Calculate yours: (Watts ÷ 1000) × 24 × 365 × £0.30 = annual cost
+
+## References
+
+- [Official Plex Installation Guide](https://support.plex.tv/articles/200288586-installation/)
+- [Plex Hardware Requirements](https://support.plex.tv/articles/201774043-what-kind-of-cpu-do-i-need-for-my-server/)
+- [UK Legal Streaming Guide](https://www.which.co.uk/reviews/digital-tv-recorders/article/recording-tv-programmes-aOTyS8p4uws)
+- [FileBot Documentation](https://www.filebot.net/manual.html)
+
+## Next Steps
+
+1. **[Secure Remote Access](../networking/cloudflare-tunnel)**: Set up Cloudflare Tunnel for external access
+2. **[Automatic Downloads](../automation/sonarr-radarr)**: Sonarr/Radarr for automated TV/movie management
+3. **[Backup Strategy](../storage/automated-backups)**: Protect your media collection with proper backups
