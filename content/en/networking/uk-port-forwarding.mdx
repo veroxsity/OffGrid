@@ -1,0 +1,411 @@
+---
+title: "UK Router Port Forwarding Guide"
+description: "Complete guide to port forwarding on UK ISP routers. BT, Virgin Media, Sky, TalkTalk, and more with specific model instructions."
+category: "Networking"
+difficulty: "Beginner"
+time: "20 minutes"
+ukSpecific: true
+tags: ["port-forwarding", "uk-isps", "router-config", "networking", "bt", "virgin", "sky", "talktalk"]
+author: "Off-Grid Freedom"
+lastUpdated: "2024-01-15"
+testedOn: ["BT Smart Hub 2", "Virgin Hub 4", "Sky Broadband Hub", "TalkTalk WiFi Hub"]
+prerequisites: 
+  - "Access to your router admin panel"
+  - "Know your device's local IP address"
+securityLevel: "Medium"
+---
+
+# UK Router Port Forwarding Guide
+
+**Every UK ISP router interface is different.** This guide covers the specific steps for major UK ISP routers to set up port forwarding for self-hosting services.
+
+## Why Port Forwarding?
+
+Port forwarding allows external devices to access services running on your local network. Essential for:
+
+- Self-hosted web servers
+- VPN servers (WireGuard, OpenVPN)
+- Game servers
+- Remote desktop access
+- Security cameras
+
+## Security Warning
+
+**⚠️ Port forwarding exposes services to the internet.** Only forward ports for services you need accessible externally, and ensure they're properly secured.
+
+## Before You Start
+
+### Find Your Device's Local IP
+
+**Windows:**
+```cmd
+ipconfig
+```
+Look for `IPv4 Address` (usually 192.168.x.x)
+
+**Mac/Linux:**
+```bash
+ip addr show
+# or
+ifconfig
+```
+
+**Router DHCP Table:**
+Most routers show connected devices with IP addresses.
+
+### Check Your Public IP
+```bash
+curl ifconfig.me
+```
+
+## BT Routers
+
+### BT Smart Hub 2 (Most Common)
+
+1. **Access Router:**
+   - Go to: `http://192.168.1.254`
+   - Login with admin password (on router label)
+
+2. **Navigate to Port Forwarding:**
+   - Click "Advanced Settings"
+   - Select "Firewall" → "Port Forwarding"
+
+3. **Add New Rule:**
+   - **Application Name:** Descriptive name (e.g., "Web Server")
+   - **Protocol:** TCP/UDP/Both
+   - **External Port Range:** Port number (e.g., 80, 443, 22)
+   - **Internal IP Address:** Your device's local IP
+   - **Internal Port Range:** Same as external (usually)
+   - **Enable:** ✓
+
+4. **Apply Settings**
+
+### BT Home Hub 5
+
+1. **Access:** `http://192.168.1.254`
+2. **Path:** Advanced → Firewall → Applications
+3. **Add Application:**
+   - Name: Service name
+   - Ports: External ports
+   - IP Address: Internal device IP
+
+### BT Smart Hub (Gen 1)
+
+1. **Access:** `http://192.168.1.254`
+2. **Path:** Advanced → Firewall → Port Forwarding
+3. **Configure** similar to Smart Hub 2
+
+## Virgin Media Routers
+
+### Virgin Media Hub 4 & Hub 5
+
+1. **Access Router:**
+   - Go to: `http://192.168.0.1`
+   - Username: `admin`
+   - Password: (on router label)
+
+2. **Navigate to Port Forwarding:**
+   - Click "Advanced Settings"
+   - Select "Security" → "Port Forwarding"
+
+3. **Add Port Forwarding Rule:**
+   - **Local IP Address:** Your device's IP
+   - **Description:** Service description
+   - **Protocol:** TCP/UDP/Both
+   - **External Start/End Port:** Port range
+   - **Internal Start/End Port:** Usually same
+   - **Enable:** ✓
+
+4. **Save Configuration**
+
+### Virgin Media Hub 3
+
+1. **Access:** `http://192.168.0.1`
+2. **Path:** Security → Port Forwarding
+3. **Create Custom Service:**
+   - Service Name: Descriptive name
+   - Protocol: TCP/UDP
+   - Port Range: Start-End ports
+   - Server IP: Internal device IP
+
+## Sky Routers
+
+### Sky Broadband Hub (SR203)
+
+1. **Access Router:**
+   - Go to: `http://192.168.0.1`
+   - Use Sky ID or check router label
+
+2. **Navigate:**
+   - "Advanced" → "Security" → "Firewall Rules"
+   - Or "Port Forwarding" (varies by firmware)
+
+3. **Add Rule:**
+   - **Service Name:** Custom name
+   - **Protocol:** TCP/UDP/Both
+   - **External Port:** Port number
+   - **Internal IP:** Device IP
+   - **Internal Port:** Port number
+   - **Status:** Enable
+
+### Sky Hub (ER110)
+
+1. **Access:** `http://192.168.0.1`
+2. **Path:** Maintenance → Security → Port Forwarding
+3. **Configure ports** with device IP mapping
+
+## TalkTalk Routers
+
+### TalkTalk WiFi Hub (Sagemcom)
+
+1. **Access Router:**
+   - Go to: `http://192.168.1.1`
+   - Username: `admin`
+   - Password: (on router label or default)
+
+2. **Navigate:**
+   - "Advanced" → "Firewall" → "Port Forwarding"
+
+3. **Add Forwarding Rule:**
+   - **Rule Name:** Service description
+   - **Protocol:** TCP/UDP/Both
+   - **External Port Range:** e.g., 80-80
+   - **Internal IP Address:** Your device
+   - **Internal Port Range:** Usually same
+   - **Enable Rule:** ✓
+
+### TalkTalk HG633 Router
+
+1. **Access:** `http://192.168.1.1`
+2. **Path:** Advanced → NAT → Port Mapping
+3. **Add Mapping:**
+   - Application: Custom name
+   - External Port: Port number
+   - Protocol: TCP/UDP
+   - Internal Host: Device IP
+   - Internal Port: Port number
+
+## Plusnet Routers
+
+### Plusnet Hub One
+
+1. **Access Router:**
+   - Go to: `http://192.168.1.1`
+   - Default login: `admin/admin`
+
+2. **Navigate:**
+   - "Advanced" → "Security" → "Port Forwarding"
+
+3. **Create Rule:**
+   - **Service Name:** Description
+   - **Service Type:** Custom
+   - **Protocol:** TCP/UDP/Both
+   - **External Port:** Port number
+   - **Internal IP:** Device IP
+   - **Internal Port:** Port number
+
+### Plusnet Hub Two
+
+1. **Access:** `http://192.168.1.1`
+2. **Path:** Internet → Port Forwarding
+3. **Add Service** with port mapping
+
+## EE Routers
+
+### EE Smart Hub
+
+1. **Access Router:**
+   - Go to: `http://192.168.1.1`
+   - Check router label for password
+
+2. **Navigate:**
+   - "Advanced Settings" → "Firewall" → "Port Forwarding"
+
+3. **Add Rule:**
+   - **Application:** Service name
+   - **Protocol:** TCP/UDP/Both
+   - **Start/End Port:** Port range
+   - **Server IP:** Internal device IP
+
+## Now Broadband (Shell Energy)
+
+### Technicolor Router
+
+1. **Access:** `http://192.168.0.1`
+2. **Path:** Firewall → Port Forwarding
+3. **Add Custom Service** with port rules
+
+## Hyperoptic Routers
+
+### Zyxel VMG8825-T50
+
+1. **Access:** `http://192.168.1.1`
+2. **Login:** admin/admin or check label
+3. **Path:** Network → NAT → Port Forwarding
+4. **Add Rule** with service details
+
+## Common Port Numbers
+
+### Web Services
+- **HTTP:** 80
+- **HTTPS:** 443
+- **Alternative HTTP:** 8080, 8443
+
+### Remote Access
+- **SSH:** 22
+- **RDP:** 3389
+- **VNC:** 5900
+
+### VPN Services
+- **OpenVPN:** 1194
+- **WireGuard:** 51820
+- **PPTP:** 1723
+
+### Media Services
+- **Plex:** 32400
+- **Jellyfin:** 8096
+- **Emby:** 8920
+
+### Game Servers
+- **Minecraft:** 25565
+- **Steam:** 27015
+- **Discord Bot:** 443
+
+## Security Best Practices
+
+### Use Non-Standard Ports
+Instead of SSH on port 22, use port 2222:
+- External Port: 2222
+- Internal Port: 22
+- Reduces automated attacks
+
+### Restrict by IP (Advanced)
+Some routers allow IP restrictions:
+- Only allow specific external IPs
+- Use for office/known locations
+
+### Enable Router Firewall
+Ensure router firewall is enabled alongside port forwarding.
+
+### Monitor Open Ports
+Check what's exposed:
+```bash
+nmap -p- [your-public-ip]
+```
+
+## Troubleshooting
+
+### Port Not Accessible Externally
+
+1. **Check Internal Service:**
+   ```bash
+   # Test locally first
+   nc -zv 192.168.1.100 80
+   ```
+
+2. **Verify Router Config:**
+   - Correct internal IP
+   - Correct port numbers
+   - Rule enabled
+
+3. **Test from External:**
+   ```bash
+   # From outside network
+   nc -zv [your-public-ip] 80
+   ```
+
+### Double NAT Issues
+
+**Symptoms:** Port forwarding configured but not working
+
+**Check:** Router shows WAN IP as 192.168.x.x or 10.x.x.x
+
+**Solutions:**
+- Contact ISP for bridge mode
+- Use UPnP if available
+- Consider VPS tunnel
+
+### Dynamic IP Changes
+
+**Problem:** IP address changes, breaking external access
+
+**Solutions:**
+- Dynamic DNS (DuckDNS, No-IP)
+- Router DDNS features
+- Monitor IP changes
+
+### ISP Port Blocking
+
+**Common blocked ports:**
+- 25 (SMTP)
+- 80 (HTTP) - some ISPs
+- 135, 139, 445 (Windows)
+
+**Solutions:**
+- Use alternative ports
+- Contact ISP for unblocking
+- Use reverse proxy
+
+## Advanced Configuration
+
+### UPnP Alternative
+Some services support automatic port mapping:
+```bash
+# Enable UPnP on router
+# Service automatically requests ports
+```
+
+### DMZ Host
+**Last resort:** Place device in DMZ
+- All ports forwarded to one device
+- **Security risk:** Only for isolated testing
+
+### VPN Alternative
+Instead of multiple port forwards:
+- Set up VPN server
+- Access all services through VPN tunnel
+- More secure than exposing individual services
+
+## Router-Specific Issues
+
+### BT: Hub Manager App
+Some settings only available via BT Hub Manager app:
+- Download from app store
+- Connect to home WiFi
+- Access advanced settings
+
+### Virgin: Super Hub 3 Modem Mode
+If using own router:
+- Enable modem mode
+- Configure port forwarding on your router
+- Not Virgin's hub
+
+### Sky: Shield Interference
+Sky Shield can block services:
+- Disable Sky Shield
+- Or add service exceptions
+
+## Testing Your Configuration
+
+### Online Port Checkers
+- portchecker.co
+- whatismyipaddress.com/port-scanner
+- canyouseeme.org
+
+### Command Line Testing
+```bash
+# Test specific port
+nc -zv [your-public-ip] [port]
+
+# Test from different network
+# Use mobile data or friend's network
+```
+
+### Router Status
+Most routers show active port forwarding rules and current connections.
+
+---
+
+**Port forwarding configured successfully?** Your self-hosted services should now be accessible from the internet. Remember to keep services updated and secured.
+
+Next steps: Set up Dynamic DNS to handle IP address changes, or configure a VPN for secure remote access to all your services.

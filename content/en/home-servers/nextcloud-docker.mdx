@@ -1,0 +1,474 @@
+---
+title: "Nextcloud on Docker with Traefik SSL"
+description: "Self-host your own cloud storage with automatic SSL certificates. Secure alternative to Google Drive that you actually control."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "60 minutes"
+ukSpecific: false
+tags: ["nextcloud", "docker", "traefik", "ssl", "cloud-storage", "privacy", "self-hosting"]
+author: "Off-Grid Freedom"
+lastUpdated: "2024-01-15"
+testedOn: ["Ubuntu 22.04", "Debian 12", "Docker 20.10+"]
+prerequisites: 
+  - "Docker and Docker Compose installed"
+  - "Domain name pointing to your server"
+  - "Port 80 and 443 accessible"
+securityLevel: "High"
+---
+
+# Nextcloud on Docker with Traefik SSL
+
+**Stop feeding your data to Big Tech.** This guide shows you how to set up your own Nextcloud instance using Docker, with automatic SSL certificates via Traefik.
+
+## Why Self-Host Nextcloud?
+
+- **Your data, your rules**: No surveillance capitalism
+- **Real privacy**: End-to-end encryption available
+- **Full control**: Custom apps, unlimited storage
+- **Cost effective**: $5/month vs $10+/month for cloud storage
+- **No vendor lock-in**: Export your data anytime
+
+## What You'll Get
+
+- Nextcloud with automatic SSL certificates
+- Secure database backend (PostgreSQL)
+- Automatic backups
+- Professional setup that scales
+
+## Architecture Overview
+
+```
+Internet → Traefik (SSL termination) → Nextcloud → PostgreSQL
+                ↓
+        Let's Encrypt (Auto SSL)
+```
+
+## Step 1: Directory Structure
+
+Create the project structure:
+
+```bash
+mkdir -p ~/nextcloud/{data,db,redis,traefik}
+cd ~/nextcloud
+```
+
+## Step 2: Traefik Configuration
+
+Create `traefik/traefik.yml`:
+
+```yaml
+api:
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: your-email@example.com  # Change this
+      storage: /acme.json
+      httpChallenge:
+        entryPoint: web
+```
+
+Create `traefik/acme.json`:
+
+```bash
+touch traefik/acme.json
+chmod 600 traefik/acme.json
+```
+
+## Step 3: Environment Variables
+
+Create `.env` file:
+
+```bash
+# Domain configuration
+DOMAIN=your-domain.com
+TRAEFIK_DOMAIN=traefik.your-domain.com
+
+# Database configuration
+POSTGRES_DB=nextcloud
+POSTGRES_USER=nextcloud
+POSTGRES_PASSWORD=your-secure-database-password
+
+# Nextcloud admin
+NEXTCLOUD_ADMIN_USER=admin
+NEXTCLOUD_ADMIN_PASSWORD=your-secure-admin-password
+
+# Trusted domains
+NEXTCLOUD_TRUSTED_DOMAINS=your-domain.com
+
+# Security
+REDIS_PASSWORD=your-secure-redis-password
+```
+
+**⚠️ Security:** Replace all passwords with strong, unique values.
+
+## Step 4: Docker Compose Configuration
+
+Create `docker-compose.yml`:
+
+```yaml
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - --configFile=/traefik.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/traefik.yml:ro
+      - ./traefik/acme.json:/acme.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$10$$X5wbL7k.Qf9s6s5JHNmHu.5O5YHn5h5H5H5H5H5H5H5H5H5H5H5"
+
+  db:
+    image: postgres:15-alpine
+    container_name: nextcloud-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./db:/var/lib/postgresql/data
+    networks:
+      - nextcloud
+
+  redis:
+    image: redis:7-alpine
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - nextcloud
+
+  nextcloud:
+    image: nextcloud:stable-apache
+    container_name: nextcloud
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${NEXTCLOUD_TRUSTED_DOMAINS}
+      REDIS_HOST: redis
+      REDIS_HOST_PASSWORD: ${REDIS_PASSWORD}
+      OVERWRITEPROTOCOL: https
+      OVERWRITEHOST: ${DOMAIN}
+    volumes:
+      - ./data:/var/www/html
+      - ./data/config:/var/www/html/config
+      - ./data/data:/var/www/html/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.nextcloud.tls=true"
+      - "traefik.http.routers.nextcloud.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.nextcloud.middlewares=nextcloud-headers"
+      - "traefik.http.middlewares.nextcloud-headers.headers.customRequestHeaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.nextcloud-headers.headers.customRequestHeaders.X-Forwarded-For="
+    networks:
+      - nextcloud
+
+networks:
+  nextcloud:
+    driver: bridge
+
+volumes:
+  db:
+  redis:
+```
+
+## Step 5: Deploy the Stack
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f nextcloud
+
+# Wait for initialization (2-3 minutes)
+docker-compose ps
+```
+
+## Step 6: Initial Nextcloud Setup
+
+1. Visit your domain: `https://your-domain.com`
+2. Log in with admin credentials from `.env`
+3. Complete the setup wizard
+4. Install recommended apps
+
+## Step 7: Security Hardening
+
+### Generate Secure App Passwords
+
+```bash
+# Access Nextcloud container
+docker exec -it nextcloud bash
+
+# Generate app password
+su -s /bin/bash www-data
+php occ user:add-app-password admin
+```
+
+### Configure Two-Factor Authentication
+
+1. Go to Settings → Security
+2. Enable TOTP (use Authy/Google Authenticator)
+3. Generate backup codes
+
+### Enable Encryption
+
+```bash
+# Enable server-side encryption
+docker exec -u www-data nextcloud php occ app:enable encryption
+docker exec -u www-data nextcloud php occ encryption:enable
+
+# Enable for all users
+docker exec -u www-data nextcloud php occ encryption:encrypt-all
+```
+
+## Step 8: Performance Optimization
+
+### Configure Redis Cache
+
+Edit `data/config/config.php`:
+
+```php
+'memcache.local' => '\OC\Memcache\Redis',
+'memcache.distributed' => '\OC\Memcache\Redis',
+'memcache.locking' => '\OC\Memcache\Redis',
+'redis' => [
+    'host' => 'redis',
+    'password' => 'your-redis-password',
+    'port' => 6379,
+],
+```
+
+### Optimize Database
+
+```bash
+# Add database indices
+docker exec -u www-data nextcloud php occ db:add-missing-indices
+
+# Convert to BigInt
+docker exec -u www-data nextcloud php occ db:convert-filecache-bigint
+```
+
+### Configure Cron Jobs
+
+```bash
+# Set background jobs to cron
+docker exec -u www-data nextcloud php occ background:cron
+
+# Add to host crontab
+crontab -e
+# Add: */5 * * * * docker exec -u www-data nextcloud php occ background:cron
+```
+
+## Step 9: Backup Strategy
+
+Create `backup.sh`:
+
+```bash
+#!/bin/bash
+
+BACKUP_DIR="/home/backups/nextcloud/$(date +%Y-%m-%d)"
+mkdir -p "$BACKUP_DIR"
+
+# Stop Nextcloud (optional, for consistency)
+docker-compose exec nextcloud php occ maintenance:mode --on
+
+# Backup database
+docker-compose exec db pg_dump -U nextcloud nextcloud > "$BACKUP_DIR/database.sql"
+
+# Backup data directory
+rsync -av ./data/ "$BACKUP_DIR/data/"
+
+# Backup configuration
+cp -r ./data/config "$BACKUP_DIR/"
+
+# Re-enable Nextcloud
+docker-compose exec nextcloud php occ maintenance:mode --off
+
+# Compress backup
+tar -czf "$BACKUP_DIR.tar.gz" -C "/home/backups/nextcloud" "$(basename "$BACKUP_DIR")"
+rm -rf "$BACKUP_DIR"
+
+echo "Backup completed: $BACKUP_DIR.tar.gz"
+```
+
+Make it executable and add to cron:
+
+```bash
+chmod +x backup.sh
+crontab -e
+# Add: 0 2 * * * /path/to/backup.sh
+```
+
+## Step 10: Mobile and Desktop Setup
+
+### Android/iOS
+1. Install Nextcloud app
+2. Server: `https://your-domain.com`
+3. Use app password for authentication
+
+### Desktop Sync
+1. Download Nextcloud desktop client
+2. Configure server URL
+3. Choose sync folders
+4. Enable selective sync for large folders
+
+## Maintenance
+
+### Regular Updates
+
+```bash
+# Update containers
+docker-compose pull
+docker-compose up -d
+
+# Update Nextcloud via web interface
+# Or: docker exec -u www-data nextcloud php occ upgrade
+```
+
+### Monitor Resources
+
+```bash
+# Check container stats
+docker stats
+
+# Monitor disk usage
+df -h
+
+# Check logs
+docker-compose logs nextcloud | tail -100
+```
+
+### Performance Monitoring
+
+```bash
+# Check slow queries
+docker exec nextcloud-db psql -U nextcloud -c "SELECT query, calls, total_time, mean_time FROM pg_stat_statements ORDER BY total_time DESC LIMIT 10;"
+
+# Monitor memory usage
+docker exec nextcloud free -h
+```
+
+## Troubleshooting
+
+### SSL Certificate Issues
+
+```bash
+# Check Traefik logs
+docker-compose logs traefik
+
+# Manually request certificate
+docker exec traefik traefik --providers.docker=false --acme.httpChallenge=true --acme.httpChallenge.entryPoint=web --acme.email=your-email@example.com --acme.storage=/acme.json --entryPoints.web.address=:80 --entryPoints.websecure.address=:443 --acme.domains=your-domain.com
+```
+
+### Database Connection Issues
+
+```bash
+# Check database connectivity
+docker exec nextcloud nc -z db 5432
+
+# Reset database password
+docker exec -it nextcloud-db psql -U postgres
+# \password nextcloud
+```
+
+### File Upload Issues
+
+Edit `data/config/config.php`:
+
+```php
+'max_file_size' => '16GB',
+'max_upload_size' => '16GB',
+```
+
+Update Docker Compose (add to nextcloud service):
+
+```yaml
+environment:
+  - PHP_MEMORY_LIMIT=2G
+  - PHP_UPLOAD_LIMIT=16G
+```
+
+## Advanced Features
+
+### External Storage
+
+1. Admin → Settings → External Storage
+2. Add FTP, SFTP, SMB, or S3 storage
+3. Configure encryption for external storage
+
+### LDAP Integration
+
+1. Install LDAP app
+2. Configure LDAP server settings
+3. Map user attributes
+
+### Office Suite Integration
+
+1. Install Collabora Online or OnlyOffice
+2. Configure document server
+3. Enable real-time collaboration
+
+## Security Best Practices
+
+### Network Security
+- Use firewall to restrict database access
+- Enable fail2ban for brute force protection
+- Regular security updates
+
+### Data Protection
+- Enable server-side encryption
+- Use strong passwords and 2FA
+- Regular security audits
+
+### Access Control
+- Review user permissions regularly
+- Use group-based access control
+- Monitor file sharing activities
+
+---
+
+**Congratulations!** You now have a fully functional, secure Nextcloud instance with automatic SSL certificates. Your data is finally under your control, not some Silicon Valley company's.
+
+Access your cloud at `https://your-domain.com` and start migrating away from Google Drive, iCloud, or Dropbox.

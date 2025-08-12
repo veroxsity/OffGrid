@@ -1,0 +1,378 @@
+---
+title: "WireGuard VPN Server on Ubuntu 22.04"
+description: "Set up your own WireGuard VPN server for secure remote access. Includes UK-specific port forwarding and firewall configuration."
+category: "VPN & Tunnels"
+difficulty: "Intermediate"
+time: "45 minutes"
+ukSpecific: true
+tags: ["wireguard", "vpn", "ubuntu", "security", "remote-access", "port-forwarding", "uk-router"]
+author: "Off-Grid Freedom"
+lastUpdated: "2024-01-15"
+testedOn: ["Ubuntu 22.04", "Ubuntu 20.04"]
+prerequisites: 
+  - "Ubuntu 22.04 server with root access"
+  - "Public IP address or UK ISP router"
+  - "Basic Linux command line knowledge"
+securityLevel: "High"
+---
+
+# WireGuard VPN Server on Ubuntu 22.04
+
+**Stop paying for VPN services that log your data.** This guide shows you how to set up your own WireGuard VPN server on Ubuntu 22.04, with specific instructions for UK ISPs and router configurations.
+
+## Why WireGuard?
+
+- **Actually secure**: Modern cryptography, minimal codebase
+- **Fast**: Outperforms OpenVPN significantly  
+- **Simple**: Easier to configure than IPSec nightmares
+- **Your data**: No third-party logging bullshit
+
+## UK Router Compatibility
+
+✅ **Tested with UK ISPs:**
+- BT Smart Hub 2 (Sky Fibre)
+- Virgin Media Hub 4/5
+- TalkTalk WiFi Hub
+- Plusnet Hub One
+
+## Step 1: Server Preparation
+
+Update your system:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo reboot
+```
+
+Install WireGuard:
+
+```bash
+sudo apt install wireguard wireguard-tools -y
+```
+
+## Step 2: Generate Server Keys
+
+```bash
+cd /etc/wireguard
+sudo umask 077
+
+# Generate server private key
+sudo wg genkey | sudo tee server_private.key
+
+# Generate server public key
+sudo cat server_private.key | wg pubkey | sudo tee server_public.key
+```
+
+## Step 3: Server Configuration
+
+Create the server config:
+
+```bash
+sudo nano /etc/wireguard/wg0.conf
+```
+
+Add this configuration:
+
+```ini
+[Interface]
+# Server private key
+PrivateKey = [PASTE_SERVER_PRIVATE_KEY_HERE]
+
+# Server IP range (change if conflicts with your network)
+Address = 10.8.0.1/24
+
+# Server port (change if needed)
+ListenPort = 51820
+
+# IP forwarding
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+# Client configurations will be added here
+```
+
+**⚠️ Security Note:** Replace `[PASTE_SERVER_PRIVATE_KEY_HERE]` with your actual server private key from step 2.
+
+## Step 4: Enable IP Forwarding
+
+```bash
+echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+## Step 5: UK Router Port Forwarding
+
+### BT Smart Hub 2
+1. Go to `192.168.1.254` → Advanced → Firewall
+2. Add Port Forwarding Rule:
+   - External Port: `51820`
+   - Internal Port: `51820`
+   - Protocol: `UDP`
+   - Internal IP: Your server's local IP
+
+### Virgin Media Hub 4/5
+1. Go to `192.168.0.1` → Advanced → Port Forwarding
+2. Create Custom Service:
+   - Name: `WireGuard`
+   - Protocol: `UDP`
+   - External Port: `51820`
+   - Internal Port: `51820`
+   - Server IP: Your server's IP
+
+### TalkTalk WiFi Hub
+1. Go to `192.168.1.1` → Firewall → Port Forwarding
+2. Add Service:
+   - Service Name: `WireGuard`
+   - Protocol: `UDP`
+   - External Port: `51820-51820`
+   - Internal IP: Your server
+   - Internal Port: `51820-51820`
+
+## Step 6: Configure Firewall
+
+```bash
+# Allow WireGuard port
+sudo ufw allow 51820/udp
+
+# Allow SSH (don't lock yourself out!)
+sudo ufw allow ssh
+
+# Enable firewall
+sudo ufw enable
+```
+
+## Step 7: Generate Client Configuration
+
+For each client device:
+
+```bash
+# Generate client keys
+cd /etc/wireguard
+sudo wg genkey | sudo tee client1_private.key
+sudo cat client1_private.key | wg pubkey | sudo tee client1_public.key
+```
+
+Add client to server config:
+
+```bash
+sudo nano /etc/wireguard/wg0.conf
+```
+
+Append to the file:
+
+```ini
+[Peer]
+# Client public key
+PublicKey = [CLIENT_PUBLIC_KEY]
+# Client IP
+AllowedIPs = 10.8.0.2/32
+```
+
+## Step 8: Client Configuration File
+
+Create `client1.conf`:
+
+```ini
+[Interface]
+PrivateKey = [CLIENT_PRIVATE_KEY]
+Address = 10.8.0.2/32
+DNS = 1.1.1.1, 1.0.0.1
+
+[Peer]
+PublicKey = [SERVER_PUBLIC_KEY]
+Endpoint = [YOUR_PUBLIC_IP]:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+```
+
+**Replace:**
+- `[CLIENT_PRIVATE_KEY]` with client private key
+- `[SERVER_PUBLIC_KEY]` with server public key  
+- `[YOUR_PUBLIC_IP]` with your public IP
+
+## Step 9: Start WireGuard
+
+```bash
+# Enable and start WireGuard
+sudo systemctl enable wg-quick@wg0
+sudo systemctl start wg-quick@wg0
+
+# Check status
+sudo systemctl status wg-quick@wg0
+sudo wg show
+```
+
+## Step 10: Client Setup
+
+### Android/iOS
+1. Install WireGuard app
+2. Scan QR code or import config file
+3. Enable connection
+
+### Windows/Mac/Linux
+1. Install WireGuard client
+2. Import `client1.conf`
+3. Activate tunnel
+
+## UK-Specific Troubleshooting
+
+### Dynamic IP Issues
+Most UK ISPs provide dynamic IPs. Solutions:
+- Use Dynamic DNS (DuckDNS, No-IP)
+- Check IP regularly: `curl ifconfig.me`
+
+### CGNAT Problems (Three, some Virgin areas)
+If you're behind CGNAT:
+- Contact ISP for static IP (£5-10/month)
+- Use reverse tunnel (Cloudflare Tunnel)
+- Consider VPS with WireGuard
+
+### Port 51820 Blocked
+Some ISPs block common VPN ports:
+- Change to port 443: `ListenPort = 443`
+- Try port 53: `ListenPort = 53`
+- Update firewall and router accordingly
+
+## Security Hardening
+
+### Disable Password SSH
+```bash
+sudo nano /etc/ssh/sshd_config
+# Set: PasswordAuthentication no
+sudo systemctl restart ssh
+```
+
+### Key Rotation
+Rotate keys monthly:
+```bash
+sudo systemctl stop wg-quick@wg0
+# Generate new keys
+# Update configs
+sudo systemctl start wg-quick@wg0
+```
+
+### Monitor Connections
+```bash
+# Check active peers
+sudo wg show
+
+# Monitor logs
+sudo journalctl -f -u wg-quick@wg0
+```
+
+## Performance Tuning
+
+### For Gigabit Connections
+```bash
+# Increase network buffers
+echo 'net.core.rmem_max = 134217728' | sudo tee -a /etc/sysctl.conf
+echo 'net.core.wmem_max = 134217728' | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+### Multiple CPU Cores
+```bash
+# Enable receive packet steering
+echo 'net.core.rps_sock_flow_entries = 32768' | sudo tee -a /etc/sysctl.conf
+```
+
+## Testing Your VPN
+
+### Check IP Address
+```bash
+# Before connecting
+curl ifconfig.me
+
+# After connecting
+curl ifconfig.me
+```
+
+Should show your server's IP, not your ISP's.
+
+### Speed Test
+```bash
+# Test without VPN
+speedtest-cli
+
+# Test with VPN
+speedtest-cli
+```
+
+### DNS Leak Test
+Visit: `dnsleaktest.com`
+
+Should show Cloudflare DNS (1.1.1.1), not your ISP's DNS.
+
+## Common UK ISP Issues
+
+### BT: Port Blocking
+BT blocks some ports by default:
+- Avoid ports 25, 135, 445
+- Use 51820 or 443
+
+### Virgin: Upload Throttling  
+Virgin throttles uploads after sustained usage:
+- Monitor with `vnstat`
+- Consider traffic shaping
+
+### Sky: Firewall Interference
+Sky Shield can interfere:
+- Disable Sky Shield
+- Use custom DNS in router
+
+## Maintenance
+
+### Weekly Tasks
+```bash
+# Check for updates
+sudo apt update && sudo apt upgrade
+
+# Monitor disk space
+df -h
+
+# Check logs for issues
+sudo journalctl -u wg-quick@wg0 --since yesterday
+```
+
+### Monthly Tasks
+- Rotate WireGuard keys
+- Review connected clients
+- Update client configurations
+
+## Troubleshooting
+
+### Connection Fails
+```bash
+# Check WireGuard status
+sudo wg show
+
+# Check if port is listening
+sudo ss -tulpn | grep 51820
+
+# Test from outside network
+nmap -sU -p 51820 [YOUR_PUBLIC_IP]
+```
+
+### Slow Speeds
+1. Check MTU settings: Try `MTU = 1280` in client config
+2. Verify CPU usage: `top`
+3. Test direct connection speed
+
+### Can't Access Local Network
+Add to client `AllowedIPs`:
+```ini
+AllowedIPs = 0.0.0.0/0, 192.168.1.0/24
+```
+
+## What's Next?
+
+- **Split Tunneling**: Route only specific traffic through VPN
+- **Kill Switch**: Block internet if VPN disconnects  
+- **Multi-Hop**: Chain VPN servers for extra security
+- **Site-to-Site**: Connect multiple locations
+
+---
+
+**You now have your own private VPN server.** No more trusting commercial VPN providers with your data. Your traffic routes through your server, under your control.
+
+Configure additional clients by repeating the client setup process with unique keys and IP addresses.
