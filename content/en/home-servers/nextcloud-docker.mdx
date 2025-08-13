@@ -18,7 +18,36 @@ securityLevel: "High"
 
 # Nextcloud on Docker with Traefik SSL
 
-**Stop feeding your data to Big Tech.** This guide shows you how to set up your own Nextcloud instance using Docker, with automatic SSL certificates via Traefik.
+> TL;DR: Prepare directories and .env, start Traefik + Nextcloud + DB with Compose, visit your domain over HTTPS, then harden (Redis cache, cron, encryption) and set up backups.
+
+## Before you begin
+- Docker and Compose installed; server updated
+- A domain pointing to your server (A/AAAA records)
+- Port 80 and 443 forwarded to this host (or use a tunnel/DNS-01)
+
+```bash
+sudo apt update && sudo apt -y upgrade
+sudo apt -y install ca-certificates curl jq
+```
+
+What this does: Patches the OS and installs minimal tooling used later for checks.
+
+## Security model and defaults
+- Edge TLS termination with Traefik; Nextcloud not directly exposed
+- Default deny inbound; allow only 80/443 to proxy
+- Use strong, unique credentials in .env; enable 2FA and set app passwords
+- Back up data/config regularly; test restores
+
+```bash
+# UFW baseline (optional)
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+What this does: Limits exposure to HTTPS entry points handled by Traefik.
 
 ## Why Self-Host Nextcloud?
 
@@ -147,7 +176,7 @@ services:
       - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$10$$X5wbL7k.Qf9s6s5JHNmHu.5O5YHn5h5H5H5H5H5H5H5H5H5H5H5"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$10$$X5wbL7k.Qf9s6s5JHNmHu.5O5YHn5h5H5H5H5H5H5H5H5H5H5"
 
   db:
     image: postgres:15-alpine
@@ -225,6 +254,23 @@ docker-compose logs -f nextcloud
 # Wait for initialization (2-3 minutes)
 docker-compose ps
 ```
+
+## Verify the deployment
+
+- Confirm containers are healthy and HTTPS is working
+
+```bash
+# Show running containers
+docker-compose ps
+
+# HTTP should redirect to HTTPS
+curl -I http://your-domain.com
+
+# HTTPS should return 200/204/302 depending on app state
+curl -I https://your-domain.com
+```
+
+What this does: Verifies the stack is up, HTTP is redirected, and TLS is served correctly by Traefik.
 
 ## Step 6: Initial Nextcloud Setup
 
@@ -430,42 +476,33 @@ environment:
   - PHP_UPLOAD_LIMIT=16G
 ```
 
-## Advanced Features
+## Uninstall / rollback
 
-### External Storage
+```bash
+# Stop and remove containers (preserves data directories)
+docker-compose down
 
-1. Admin → Settings → External Storage
-2. Add FTP, SFTP, SMB, or S3 storage
-3. Configure encryption for external storage
+# Optional: remove volumes if you intend a full reset (DANGEROUS)
+docker-compose down -v
 
-### LDAP Integration
+# Optional: remove persistent data (ensure backups first!)
+sudo rm -rf ./data ./db ./traefik/acme.json
+```
 
-1. Install LDAP app
-2. Configure LDAP server settings
-3. Map user attributes
+What this does: Tears down services, optionally removing volumes and on-disk data. Always back up `./data`, `./db`, and `./traefik/acme.json` before destructive actions.
 
-### Office Suite Integration
+## FAQ
+- Q: How do I change the public domain later?
+  - A: Update `DOMAIN` and `NEXTCLOUD_TRUSTED_DOMAINS` in `.env`, adjust Traefik labels if needed, then `docker-compose up -d`.
+- Q: Cert issuance fails—what should I check?
+  - A: Port 80 must be reachable from the internet for HTTP-01; verify DNS A/AAAA records and that your router forwards 80/443 to this host.
+- Q: Where is my data stored?
+  - A: Inside `./data` (Nextcloud files/config), database in `./db`, and certificates in `./traefik/acme.json`.
 
-1. Install Collabora Online or OnlyOffice
-2. Configure document server
-3. Enable real-time collaboration
-
-## Security Best Practices
-
-### Network Security
-- Use firewall to restrict database access
-- Enable fail2ban for brute force protection
-- Regular security updates
-
-### Data Protection
-- Enable server-side encryption
-- Use strong passwords and 2FA
-- Regular security audits
-
-### Access Control
-- Review user permissions regularly
-- Use group-based access control
-- Monitor file sharing activities
+## References
+- Nextcloud docs: https://docs.nextcloud.com/
+- Traefik docs: https://doc.traefik.io/traefik/
+- Docker Compose: https://docs.docker.com/compose/
 
 ---
 

@@ -92,10 +92,10 @@ export default function BookmarkButton({ guideSlug, title, description }: Bookma
       loading={isLoading}
       variant={isBookmarked ? "default" : "outline"}
       size="sm"
-      className={`flex items-center gap-2 transition-all duration-200 ${
+      className={`flex items-center gap-2 transition-all duration-200 whitespace-nowrap ${
         isBookmarked 
-          ? 'shadow-lg shadow-red-500/25' 
-          : 'border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:border-red-400 dark:hover:border-red-600'
+          ? '' 
+          : 'border-[var(--ds-border-subtle)] text-[var(--ds-text-normal)] hover:border-[var(--ds-border-strong)]'
       }`}
     >
       <svg

@@ -14,9 +14,9 @@ interface GuideLayoutProps {
 
 export default function GuideLayout({ metadata, children }: GuideLayoutProps) {
   const difficultyClasses: Record<string, string> = {
-    Beginner: 'bg-green-500/10 text-green-300 border border-green-400/20',
-    Intermediate: 'bg-yellow-500/10 text-yellow-300 border border-yellow-400/20',
-    Advanced: 'bg-red-500/10 text-red-300 border border-red-400/20',
+    Beginner: 'bg-green-500/15 text-green-300 border border-green-400/25',
+    Intermediate: 'bg-yellow-500/15 text-yellow-300 border border-yellow-400/25',
+    Advanced: 'bg-red-500/15 text-red-300 border border-red-400/25',
   };
 
   return (
@@ -51,19 +51,20 @@ export default function GuideLayout({ metadata, children }: GuideLayoutProps) {
                 </span>
               )}
               {metadata.ukSpecific && (
-                <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-blue-500/20 text-white border border-blue-400/40 shadow-sm">🇬🇧 UK</span>
+                <span className="text-[11px] font-semibold px-3 py-1 rounded-full border border-white/25 bg-white/10 text-white shadow-sm">🇬🇧 UK</span>
               )}
             </div>
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-8 relative z-10">
-              <div className="flex-1">
-                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4 drop-shadow-sm">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 md:gap-8 relative z-10">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-3 md:mb-4 drop-shadow-sm">
                   {metadata.title}
                 </h1>
                 <p className="text-base sm:text-lg lg:text-xl text-white/90 max-w-3xl leading-relaxed">
                   {metadata.description}
                 </p>
               </div>
-              <div className="flex-shrink-0">
+              {/* Ensure bookmark never clips by constraining container */}
+              <div className="flex-shrink-0 self-start lg:self-auto">
                 <BookmarkButton guideSlug={metadata.slug} title={metadata.title} description={metadata.description} />
               </div>
             </div>
@@ -102,14 +103,13 @@ export default function GuideLayout({ metadata, children }: GuideLayoutProps) {
           </div>
           <div className="lg:col-span-9">
             <div className="prose prose-lg dark:prose-invert max-w-none relative">
-              {/* gradient top fade for large code blocks */}
               <div className="pointer-events-none absolute -top-4 left-0 right-0 h-6 bg-gradient-to-b from-[var(--ds-background-primary)] to-transparent" />
               {children}
             </div>
 
             {/* Security Note */}
-            <Card className="mt-14 border-l-[3px] border-yellow-400 bg-yellow-500/5">
-              <CardContent className="p-6">
+            <Card className="mt-12 md:mt-14 border-l-[3px] border-yellow-400 bg-yellow-500/5">
+              <CardContent className="p-5 md:p-6">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M4.93 4.93l14.14 14.14M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
@@ -128,7 +128,7 @@ export default function GuideLayout({ metadata, children }: GuideLayoutProps) {
             <RelatedGuides currentGuide={metadata} />
 
             {/* Footer Navigation */}
-            <div className="mt-16 pt-8 border-t border-[var(--ds-border-subtle)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="mt-14 md:mt-16 pt-8 border-t border-[var(--ds-border-subtle)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <Link href="/guides" className="group inline-flex items-center gap-2 text-sm font-medium text-[var(--ds-text-muted)] hover:text-white transition-colors">
                 <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--ds-background-secondary)] group-hover:bg-[var(--ds-background-tertiary)] transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>

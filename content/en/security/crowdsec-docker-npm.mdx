@@ -1,0 +1,72 @@
+---
+title: "CrowdSec with Nginx Proxy Manager (Docker)"
+description: "Crowd-sourced protection for your exposed services by analyzing NPM logs and blocking offenders."
+category: "Security"
+difficulty: "Intermediate"
+time: "30 minutes"
+ukSpecific: false
+status: "published"
+tags: ["crowdsec","nginx-proxy-manager","security","bouncer","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04"]
+---
+
+# CrowdSec with Nginx Proxy Manager (Docker)
+
+Detect and block malicious traffic using crowdsourced signals.
+
+## 1) Compose
+
+```yaml
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+    volumes:
+      - ./crowdsec/data:/var/lib/crowdsec/data
+      - ./crowdsec/config:/etc/crowdsec
+      - ./npm/logs:/var/log/npm:ro  # map NPM logs (ensure you bind-mount NPM logs from host)
+    environment:
+      - TZ=Europe/London
+      - COLLECTIONS=crowdsecurity/nginx
+    restart: unless-stopped
+
+  bouncer:
+    image: crowdsecurity/cs-firewall-bouncer:latest
+    container_name: cs-bouncer
+    privileged: true
+    network_mode: host
+    environment:
+      - CROWDSEC_LAPI_URL=http://127.0.0.1:8080
+      - CROWDSEC_LAPI_KEY=${LAPI_KEY}
+    restart: unless-stopped
+```
+
+Generate an API key inside `crowdsec` and store as `LAPI_KEY`.
+
+## 2) Configure acquisition
+
+Create `/etc/crowdsec/acquis.yaml` inside the container (or mount it) to parse NPM logs:
+
+```yaml
+filenames:
+  - /var/log/npm/*.log
+labels:
+  type: nginx
+```
+
+Restart CrowdSec.
+
+## 3) Verify
+
+```bash
+docker logs crowdsec -f
+sudo cscli metrics
+sudo cscli decisions list
+```
+
+## Notes
+
+- Ensure NPM writes access logs to a host path bound to `./npm/logs`.
+- Alternatively use the Cloudflare bouncer if you proxy via Cloudflare.

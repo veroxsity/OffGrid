@@ -1,0 +1,68 @@
+---
+title: "Dynamic DNS with DuckDNS (Linux)"
+description: "Free dynamic DNS to keep a hostname updated with your changing IP."
+category: "Networking"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: true
+status: "published"
+tags: ["ddns","duckdns","dynamic-dns","uk-isp"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Debian 12"]
+---
+
+# Dynamic DNS with DuckDNS (Linux)
+
+Keep a stable hostname even when your UK ISP changes your IP.
+
+## Script + systemd timer
+
+```bash
+sudo mkdir -p /opt/duckdns
+sudo tee /opt/duckdns/update.sh >/dev/null <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+DOMAIN="your-subdomain"
+TOKEN="your-token"
+IPV6="false" # set true if you want AAAA updates
+curl -s "https://www.duckdns.org/update?domains=$DOMAIN&token=$TOKEN&ip=&ipv6=$IPV6" | tee -a /opt/duckdns/duck.log
+SH
+
+sudo chmod +x /opt/duckdns/update.sh
+```
+
+Timer:
+
+```bash
+sudo tee /etc/systemd/system/duckdns.service >/dev/null <<'UNIT'
+[Unit]
+Description=DuckDNS Updater
+
+[Service]
+Type=oneshot
+ExecStart=/opt/duckdns/update.sh
+UNIT
+
+sudo tee /etc/systemd/system/duckdns.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Run DuckDNS updater every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=duckdns.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+sudo systemctl enable --now duckdns.timer
+```
+
+Check logs: `journalctl -u duckdns.service -e`.
+
+## Notes
+
+- Pair with NPM or Cloudflare Tunnel for remote access.
+- Consider IPv6 if your ISP supports it.

@@ -1,0 +1,40 @@
+---
+title: "Uptime Kuma (Self-hosted Status Page) with Docker"
+description: "Monitor your services with HTTP/TCP/ICMP checks and beautiful status pages."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["uptime-kuma","monitoring","docker","status"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+---
+
+# Uptime Kuma (Self-hosted Status Page) with Docker
+
+Simple monitoring with notifications.
+
+## Deploy
+
+```bash
+mkdir -p ~/uptime-kuma && cd ~/uptime-kuma
+cat > docker-compose.yaml <<'YAML'
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: uptime-kuma
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+YAML
+
+docker compose up -d
+```
+
+Open `http://SERVER_IP:3001` and create an admin account.
+
+Add monitors, set notifications (Telegram, Discord, Email, etc.).

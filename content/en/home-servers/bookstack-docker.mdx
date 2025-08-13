@@ -1,0 +1,45 @@
+---
+title: "BookStack (Wiki) with Docker"
+description: "Self-hosted documentation/wiki platform for teams."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "15 minutes"
+ukSpecific: false
+status: "published"
+tags: ["bookstack","wiki","docs","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# BookStack (Wiki) with Docker
+
+```yaml
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_ROOT_PASSWORD: change-me
+      MARIADB_DATABASE: bookstack
+      MARIADB_USER: bookstack
+      MARIADB_PASSWORD: change-me
+    volumes:
+      - ./mariadb:/var/lib/mysql
+    restart: unless-stopped
+
+  app:
+    image: linuxserver/bookstack
+    environment:
+      - DB_HOST=db
+      - DB_USER=bookstack
+      - DB_PASS=change-me
+      - DB_DATABASE=bookstack
+    ports:
+      - "6875:80"
+    volumes:
+      - ./config:/config
+    depends_on:
+      - db
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:6875`.

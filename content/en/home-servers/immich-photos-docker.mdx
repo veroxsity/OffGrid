@@ -1,0 +1,55 @@
+---
+title: "Immich (Self-hosted Photos) with Docker"
+description: "Run Immich for private photo backup and AI search (optional GPU)."
+category: "Home Servers"
+difficulty: "Advanced"
+time: "40 minutes"
+ukSpecific: false
+status: "published"
+tags: ["immich","photos","ai","docker","gpu"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Immich (Self-hosted Photos) with Docker
+
+Includes PostgreSQL and Redis dependencies.
+
+## Compose
+
+```yaml
+services:
+  postgres:
+    image: tensorchord/pgvecto-rs:pg16
+    environment:
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: immich
+    volumes:
+      - ./pg:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:release
+    environment:
+      DB_HOSTNAME: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: change-me
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: redis
+    volumes:
+      - ./photos:/usr/src/app/upload
+    ports:
+      - "2283:2283"
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:2283` and create admin.
+
+Mount your photo library into `./photos` or as additional volumes.

@@ -1,0 +1,131 @@
+---
+title: "IPv6 Basics with UK ISPs"
+description: "Enable and test IPv6 on common UK ISPs, plus firewall considerations."
+category: "Networking"
+difficulty: "Beginner"
+time: "15 minutes"
+ukSpecific: true
+status: "published"
+tags: ["ipv6","uk-isp","networking"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# IPv6 Basics with UK ISPs
+
+Get native IPv6 working reliably on common UK ISPs and avoid exposing admin services.
+
+## What you need
+- Router that supports IPv6 (OpenWrt recommended; BT/Sky/Virgin/TalkTalk stock firmware vary)
+- A UK ISP that offers IPv6 (BT, Sky, AAISP generally yes; Virgin varies by region)
+- A client to test from (Linux/macOS/Windows)
+
+## Step 1 — Check if your ISP and router have IPv6 enabled
+
+```bash
+curl -6 https://ifconfig.co 2>/dev/null || echo "No IPv6 from this device"
+```
+
+What this does: Attempts an IPv6-only HTTP request. If it fails, your network path to the internet is not IPv6-enabled yet.
+
+On a client you can also test:
+```bash
+ping -6 one.one.one.one -c 3
+```
+
+What this does: Sends ICMPv6 echo to Cloudflare’s IPv6 resolver. Success indicates IPv6 reachability.
+
+## Step 2 — Enable/verify IPv6 on OpenWrt
+
+Through LuCI
+- Network → Interfaces → WAN6 → Ensure “Request IPv6 prefix length (PD)” is set (typically 56/60/64).
+- Network → Interfaces → LAN → DHCP Server → IPv6 Settings → RA service: server; DHCPv6 service: server; NDP-Proxy: disabled (typical).
+- Save & Apply.
+
+Via UCI (CLI)
+```bash
+# Request a /56 PD on WAN (adjust length for your ISP)
+uci set network.wan6.reqprefix='56'
+uci commit network && /etc/init.d/network restart
+
+# Ensure LAN advertises IPv6 addresses via RA + DHCPv6
+uci set dhcp.lan.dhcpv6='server'
+uci set dhcp.lan.ra='server'
+uci commit dhcp && /etc/init.d/odhcpd restart
+```
+
+What this does: Requests a delegated prefix from your ISP, then advertises IPv6 on LAN so clients auto-configure global IPv6 addresses.
+
+Check that LAN clients receive global IPv6 (not just link-local):
+```bash
+ip -6 addr show | sed -n '/scope global/p'
+```
+
+## Step 3 — Set DNS and test AAAA resolution
+
+On OpenWrt, ensure clients use your router for DNS (DHCP hands out the router):
+- Network → Interfaces → LAN → DHCP Server → General → “DHCP-Options” empty (default) so router advertises itself.
+
+Test from a client:
+```bash
+getent ahosts ipv6.google.com | head -n1
+```
+
+What this does: Resolves AAAA records and shows an IPv6 address if working.
+
+## Step 4 — Basic IPv6 firewall hygiene
+
+Do not expose router or NAS admin ports over IPv6 by default. For OpenWrt GUI:
+- Network → Firewall → Traffic Rules → Block inbound to router for 22/80/443 on WAN zone (unless you really need remote admin).
+
+Example UFW on a server (Ubuntu):
+```bash
+# Default deny inbound (affects v4 and v6)
+sudo ufw default deny incoming
+# Allow needed services explicitly
+sudo ufw allow 22/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+What this does: Ensures you only allow services you intend to expose. IPv6 is globally routable; be strict.
+
+## Step 5 — Verify end-to-end
+
+```bash
+# From a client on your LAN
+curl -6 https://ifconfig.co
+
+# From the router
+ping -6 2606:4700:4700::1111 -c 3   # Cloudflare IPv6 DNS
+```
+
+Expected: You should see a global IPv6 on the client and successful pings from the router.
+
+## Troubleshooting
+
+- Only “link-local” (fe80::) addresses
+  - Cause: RA/DHCPv6 not advertising on LAN, or PD not granted by ISP.
+  - Fix: Ensure DHCPv6+RA are set to “server” on LAN. Confirm `reqprefix` on WAN6. Reboot router.
+
+- No delegated prefix (PD) from ISP
+  - BT/Sky: PD usually /56 or /60. Power-cycle the modem; some ISPs lock PD to DUID. Ensure WAN6 has a stable DUID.
+  - Virgin: IPv6 deployment is inconsistent. If unavailable, consider a tunnel broker or wait for rollout.
+
+- Clients resolve AAAA but can’t reach IPv6 sites
+  - Cause: Upstream filtering or broken MTU/PMTU.
+  - Fix: Set IPv6 MTU on WAN to 1480–1492 if PPPoE. Verify ICMPv6 is not blocked (needed for PMTU).
+
+- Admin interface reachable over IPv6 from the internet
+  - Cause: Open inbound to router in WAN6 zone.
+  - Fix: Close ports in firewall. Never expose LuCI/SSH publicly unless absolutely necessary (use a VPN).
+
+- Privacy extensions and stable addresses
+  - Tip: Enable IPv6 privacy extensions on clients to rotate outbound addresses. On Linux: `sysctl net.ipv6.conf.all.use_tempaddr=2`.
+
+- DNS shows IPv6 but sites prefer IPv4
+  - Many CDNs do “happy eyeballs.” As long as IPv6 is healthy, that’s fine. Ensure latency over IPv6 isn’t significantly worse.
+
+## References
+- OpenWrt IPv6 docs: https://openwrt.org/docs/guide-user/network/ipv6/start
+- BT, Sky, AAISP IPv6 status pages (ISP-specific guidance)

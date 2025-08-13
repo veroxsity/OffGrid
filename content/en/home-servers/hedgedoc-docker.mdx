@@ -1,0 +1,39 @@
+---
+title: "HedgeDoc (Collaborative Markdown) with Docker"
+description: "Real-time collaborative notes and docs in Markdown."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["hedgedoc","markdown","collaboration","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# HedgeDoc (Collaborative Markdown) with Docker
+
+```yaml
+services:
+  hedgedoc:
+    image: quay.io/hedgedoc/hedgedoc:latest
+    environment:
+      - CMD_DOMAIN=notes.example.com
+      - CMD_DB_URL=postgres://hedgedoc:change-me@db:5432/hedgedoc
+    ports:
+      - "3002:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_DB: hedgedoc
+      POSTGRES_USER: hedgedoc
+    volumes:
+      - ./pg:/var/lib/postgresql/data
+    restart: unless-stopped
+```
+
+Reverse proxy to `notes.example.com`.

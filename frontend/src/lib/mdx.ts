@@ -34,6 +34,16 @@ export interface RawGuide {
 
 const contentDirectory = path.join(process.cwd(), '..', 'content');
 
+function normalizeFrontmatter(frontmatter: any): Omit<GuideMetadata, 'slug'> {
+  const fm = { ...frontmatter };
+  // Ensure required shapes and safe defaults
+  fm.tags = Array.isArray(fm.tags) ? fm.tags : [];
+  if (typeof fm.ukSpecific !== 'boolean') fm.ukSpecific = false;
+  if (!fm.difficulty) fm.difficulty = 'Beginner';
+  if (!fm.time) fm.time = '—';
+  return fm as Omit<GuideMetadata, 'slug'>;
+}
+
 // Get all guide slugs for static generation
 export function getAllGuideSlugs(): string[] {
   const englishDir = path.join(contentDirectory, 'en');
@@ -85,7 +95,7 @@ export async function getGuideBySlug(slug: string, opts: { includeDrafts?: boole
     });
 
     const metadata: GuideMetadata = {
-      ...frontmatter as Omit<GuideMetadata, 'slug'>,
+      ...normalizeFrontmatter(frontmatter),
       slug,
     };
 
@@ -111,7 +121,7 @@ export async function getAllGuides(opts: { includeDrafts?: boolean } = {}): Prom
       const fileContent = fs.readFileSync(filePath, 'utf8');
       const { data: frontmatter } = matter(fileContent);
       if (frontmatter.status === 'draft' && !opts.includeDrafts) continue;
-      guides.push({ ...(frontmatter as Omit<GuideMetadata,'slug'>), slug });
+      guides.push({ ...normalizeFrontmatter(frontmatter), slug });
     } catch (error) {
       console.error(`Error loading metadata for ${slug}:`, error);
     }
@@ -129,7 +139,11 @@ export async function getGuidesByCategory(category: string, opts: { includeDraft
 export async function searchGuides(query: string, opts: { includeDrafts?: boolean } = {}) {
   const allGuides = await getAllGuides(opts);
   const term = query.toLowerCase();
-  return allGuides.filter(guide => guide.title.toLowerCase().includes(term) || guide.description.toLowerCase().includes(term) || guide.tags.some(t => t.toLowerCase().includes(term)));
+  return allGuides.filter(guide => 
+    guide.title.toLowerCase().includes(term) || 
+    guide.description.toLowerCase().includes(term) || 
+    (Array.isArray(guide.tags) ? guide.tags : []).some(t => (t || '').toLowerCase().includes(term))
+  );
 }
 
 // Get raw guide content for editing
@@ -142,7 +156,7 @@ export async function getRawGuideBySlug(slug: string, opts: { includeDrafts?: bo
     if (frontmatter.status === 'draft' && !opts.includeDrafts) return null;
 
     const metadata: GuideMetadata = {
-      ...frontmatter as Omit<GuideMetadata, 'slug'>,
+      ...normalizeFrontmatter(frontmatter),
       slug,
     };
 

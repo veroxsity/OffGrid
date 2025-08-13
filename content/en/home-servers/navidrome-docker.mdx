@@ -1,0 +1,33 @@
+---
+title: "Navidrome (Self-hosted Music) with Docker"
+description: "Stream your music collection to any device with Subsonic-compatible API."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["navidrome","music","subsonic","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Debian 12"]
+---
+
+# Navidrome (Self-hosted Music) with Docker
+
+```yaml
+services:
+  navidrome:
+    image: deluan/navidrome:latest
+    user: "1000:1000"
+    ports:
+      - "4533:4533"
+    volumes:
+      - ./data:/data
+      - /srv/music:/music:ro
+    environment:
+      - ND_LOGLEVEL=info
+      - ND_SCANSCHEDULE=1h
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:4533` → create admin → scan /music.

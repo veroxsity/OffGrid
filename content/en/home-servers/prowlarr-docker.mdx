@@ -1,0 +1,31 @@
+---
+title: "Prowlarr with Docker"
+description: "Centralized indexer manager for Sonarr/Radarr."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["prowlarr","indexer","media","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Prowlarr with Docker
+
+```yaml
+services:
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    ports:
+      - 9696:9696
+    volumes:
+      - ./config:/config
+    restart: unless-stopped
+```
+
+Configure indexers and link to Sonarr/Radarr.

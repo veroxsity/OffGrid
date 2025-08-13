@@ -1,0 +1,70 @@
+---
+title: "ZFS on Ubuntu: Pool and Datasets"
+description: "Set up a ZFS pool with compression and snapshots on Ubuntu."
+category: "Storage"
+difficulty: "Advanced"
+time: "40 minutes"
+ukSpecific: false
+status: "published"
+tags: ["zfs","storage","raid","snapshots","ubuntu"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04"]
+---
+
+# ZFS on Ubuntu: Pool and Datasets
+
+Powerful filesystem with checksums, snapshots, and easy RAID.
+
+## Install
+
+```bash
+sudo apt update
+sudo apt install -y zfsutils-linux
+```
+
+## Create pool
+
+Mirror example (2 disks `/dev/sdb /dev/sdc`):
+
+```bash
+sudo zpool create tank mirror /dev/sdb /dev/sdc
+```
+
+RAIDZ1 example (3+ disks):
+
+```bash
+sudo zpool create tank raidz1 /dev/sdb /dev/sdc /dev/sdd
+```
+
+## Datasets and settings
+
+```bash
+sudo zfs set compression=zstd tank
+sudo zfs create tank/media
+sudo zfs create tank/backups
+```
+
+Mountpoints appear under `/tank/*` by default.
+
+## Snapshots and pruning
+
+```bash
+sudo zfs snapshot -r tank@daily-$(date +%F)
+# List
+sudo zfs list -t snapshot
+# Prune (example: delete older than 14 days)
+sudo zfs list -t snapshot | awk '/tank@daily/ {print $1}' | head -n -14 | xargs -r sudo zfs destroy
+```
+
+## Scrub monthly
+
+```bash
+sudo zpool scrub tank
+sudo zpool status -v
+```
+
+## Notes
+
+- Use whole disks, not partitions, where possible.
+- Back up your `zpool status` and topology.

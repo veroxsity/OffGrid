@@ -1,0 +1,45 @@
+---
+title: "Portainer (Docker UI) with Docker"
+description: "Manage your containers, images, networks, and stacks with a web UI."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["portainer","docker","compose","gui"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+---
+
+# Portainer (Docker UI) with Docker
+
+Portainer lets you manage Docker visually.
+
+## Deploy
+
+```bash
+mkdir -p ~/portainer && cd ~/portainer
+cat > docker-compose.yaml <<'YAML'
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    ports:
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+    restart: unless-stopped
+YAML
+
+docker compose up -d
+```
+
+Open `https://SERVER_IP:9443` → set admin password.
+
+## Tips
+
+- Use Stacks to deploy Compose files.
+- Create endpoint-only users; protect with strong passwords.
+- Backup `./data`.

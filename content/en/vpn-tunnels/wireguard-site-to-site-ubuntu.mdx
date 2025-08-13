@@ -1,0 +1,58 @@
+---
+title: "WireGuard Site-to-Site (Ubuntu ↔ Ubuntu)"
+description: "Connect two networks via WireGuard peers—route subnets both ways."
+category: "VPN & Tunnels"
+difficulty: "Intermediate"
+time: "30 minutes"
+ukSpecific: false
+status: "published"
+tags: ["wireguard","site-to-site","vpn","routing","ubuntu"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# WireGuard Site-to-Site (Ubuntu ↔ Ubuntu)
+
+Two sites: A (10.0.1.0/24) and B (10.0.2.0/24).
+
+## A: `/etc/wireguard/wg0.conf`
+
+```ini
+[Interface]
+Address = 10.8.0.1/24
+PrivateKey = A_PRIVATE
+ListenPort = 51820
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+[Peer]
+PublicKey = B_PUBLIC
+AllowedIPs = 10.0.2.0/24, 10.8.0.2/32
+Endpoint = B_WAN_IP:51820
+PersistentKeepalive = 25
+```
+
+## B: `/etc/wireguard/wg0.conf`
+
+```ini
+[Interface]
+Address = 10.8.0.2/24
+PrivateKey = B_PRIVATE
+ListenPort = 51820
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+[Peer]
+PublicKey = A_PUBLIC
+AllowedIPs = 10.0.1.0/24, 10.8.0.1/32
+Endpoint = A_WAN_IP:51820
+PersistentKeepalive = 25
+```
+
+Enable IP forwarding on both and add static routes on routers if needed.
+
+```bash
+echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+```
+
+Test with `ping 10.0.2.x` from Site A and vice versa.

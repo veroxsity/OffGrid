@@ -18,14 +18,24 @@ securityLevel: "High"
 
 # WireGuard VPN Server on Ubuntu 22.04
 
-**Stop paying for VPN services that log your data.** This guide shows you how to set up your own WireGuard VPN server on Ubuntu 22.04, with specific instructions for UK ISPs and router configurations.
+> TL;DR: Install WireGuard, generate server and client keys, configure wg0 with a private subnet (10.8.0.0/24), forward UDP 51820 on your router, enable IP forwarding, open the firewall, then verify peers connect and traffic egresses via the server.
+
+## Before you begin
+- Ensure the server is up to date and you have sudo
+- Decide on the VPN subnet (e.g., 10.8.0.0/24) and UDP port (default 51820)
+- If on a UK ISP router, confirm you can forward UDP 51820 to this server
+
+## Security model and defaults
+- WireGuard uses modern cryptography with pre-shared public keys; no passwords over the tunnel
+- Expose only UDP 51820 on the server’s firewall; default-deny all else
+- Do not run other admin services on the public interface without TLS and hardening
 
 ## Why WireGuard?
 
 - **Actually secure**: Modern cryptography, minimal codebase
-- **Fast**: Outperforms OpenVPN significantly  
+- **Fast**: Outperforms OpenVPN significantly
 - **Simple**: Easier to configure than IPSec nightmares
-- **Your data**: No third-party logging bullshit
+- **Your data**: No third-party logging
 
 ## UK Router Compatibility
 
@@ -202,6 +212,25 @@ sudo systemctl status wg-quick@wg0
 sudo wg show
 ```
 
+## Verify the deployment
+
+- Check the interface and listening port on the server
+
+```bash
+sudo wg show
+sudo ss -u -lpn | grep 51820 || sudo netstat -u -lpn | grep 51820
+```
+
+What this does: Confirms the wg0 interface is up and WireGuard is listening on UDP 51820.
+
+- From a client network (outside), verify the port is reachable
+
+```bash
+nmap -sU -p 51820 YOUR.PUBLIC.IP
+```
+
+Expected: Port 51820/udp shows open|filtered (many routers report this), which is acceptable. A full test is to connect a client and run traffic.
+
 ## Step 10: Client Setup
 
 ### Android/iOS
@@ -364,12 +393,33 @@ Add to client `AllowedIPs`:
 AllowedIPs = 0.0.0.0/0, 192.168.1.0/24
 ```
 
-## What's Next?
+## Uninstall / rollback
 
-- **Split Tunneling**: Route only specific traffic through VPN
-- **Kill Switch**: Block internet if VPN disconnects  
-- **Multi-Hop**: Chain VPN servers for extra security
-- **Site-to-Site**: Connect multiple locations
+```bash
+# Disable and stop the interface
+sudo systemctl disable --now wg-quick@wg0
+
+# Remove package (Ubuntu)
+sudo apt -y purge wireguard wireguard-tools
+
+# Remove configuration (make a backup first!)
+sudo rm -f /etc/wireguard/wg0.conf /etc/wireguard/server_private.key /etc/wireguard/server_public.key
+```
+
+What this does: Stops the VPN, removes packages, and deletes keys/config. Ensure you have backups of any peer configs.
+
+## FAQ
+- Q: How do I change the port from 51820?
+  - A: Update `ListenPort` in `/etc/wireguard/wg0.conf`, adjust firewall and router port-forward, then `sudo systemctl restart wg-quick@wg0`.
+- Q: Can I use a domain instead of an IP for Endpoint?
+  - A: Yes, set `Endpoint = vpn.example.com:51820` and keep DNS updated (use DDNS if IP changes).
+- Q: Multiple clients?
+  - A: Allocate unique keys and /32 IPs per peer (e.g., 10.8.0.2/32, 10.8.0.3/32) and add a [Peer] block per client on the server.
+
+## References
+- WireGuard docs: https://www.wireguard.com/
+- wg-quick man page: https://manpages.debian.org/wg-quick
+- Our UK Port Forwarding guide: ../networking/uk-port-forwarding
 
 ---
 

@@ -1,0 +1,60 @@
+---
+title: "Traefik Reverse Proxy with Docker + Cloudflare DNS Challenge"
+description: "Automatic Let's Encrypt certificates via Cloudflare DNS for services behind Traefik."
+category: "Networking"
+difficulty: "Advanced"
+time: "35 minutes"
+ukSpecific: false
+status: "published"
+tags: ["traefik","letsencrypt","cloudflare","reverse-proxy","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Traefik Reverse Proxy with Docker + Cloudflare DNS Challenge
+
+Obtain certs even behind CGNAT using DNS-01.
+
+## Compose
+
+```yaml
+services:
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.cf.acme.dnschallenge=true"
+      - "--certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.cf.acme.email=you@example.com"
+      - "--certificatesresolvers.cf.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    restart: unless-stopped
+```
+
+Set `CF_DNS_API_TOKEN` with zone DNS edit permissions.
+
+## Example service
+
+```yaml
+  whoami:
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.example.com`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls.certresolver=cf"
+```
+
+## Notes
+
+- Use Cloudflare DNS for your domain.
+- Strict API scopes are safer (Zone:DNS:Edit for target zone).

@@ -1,0 +1,48 @@
+---
+title: "WireGuard Windows Client Configuration"
+description: "Create and import a Windows client for your WireGuard server."
+category: "VPN & Tunnels"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["wireguard","windows","client","vpn"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# WireGuard Windows Client Configuration
+
+## Generate keys (server)
+
+```bash
+cd /etc/wireguard
+wg genkey | tee win_priv | wg pubkey > win_pub
+```
+
+Append to server `wg0.conf`:
+
+```ini
+[Peer]
+PublicKey = (contents of win_pub)
+AllowedIPs = 10.8.0.3/32
+```
+
+Restart server: `sudo systemctl restart wg-quick@wg0`.
+
+## client.conf (import on Windows)
+
+```ini
+[Interface]
+PrivateKey = (contents of win_priv)
+Address = 10.8.0.3/32
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = [SERVER_PUBLIC_KEY]
+Endpoint = [YOUR_PUBLIC_IP]:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+```
+
+Import into WireGuard for Windows → Activate.

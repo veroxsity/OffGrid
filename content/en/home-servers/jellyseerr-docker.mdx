@@ -1,0 +1,27 @@
+---
+title: "Jellyseerr (Media Requests) with Docker"
+description: "Let users request movies/series and auto-send to Radarr/Sonarr."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["jellyseerr","requests","media","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Jellyseerr (Media Requests) with Docker
+
+```yaml
+services:
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    ports:
+      - 5055:5055
+    volumes:
+      - ./config:/app/config
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:5055` and connect to Radarr/Sonarr.

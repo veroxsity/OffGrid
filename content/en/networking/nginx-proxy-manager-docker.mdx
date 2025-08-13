@@ -1,0 +1,134 @@
+---
+title: "Nginx Proxy Manager with Docker (TLS, Reverse Proxy)"
+description: "Expose home services securely with Nginx Proxy Manager and automatic Let's Encrypt certificates."
+category: "Networking"
+difficulty: "Intermediate"
+time: "30 minutes"
+ukSpecific: false
+status: "published"
+tags: ["reverse-proxy","nginx","letsencrypt","docker","https"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+prerequisites:
+  - "Docker + Compose installed"
+  - "Public DNS record pointing to your IP (or Cloudflare proxy)"
+---
+
+# Nginx Proxy Manager with Docker (TLS, Reverse Proxy)
+
+User-friendly reverse proxy to front your apps with HTTPS.
+
+> TL;DR: Bring up NPM with Docker, log in to the admin UI, add a Proxy Host for each app, request a cert, and forward 80/443 on your router.
+
+## Before you begin
+- Docker + Compose installed
+- A domain with DNS A/AAAA to your public IP (or use Cloudflare proxy)
+- Router port-forwarding for 80/443 → this host (unless using Cloudflare Tunnel)
+
+## Security model and defaults
+- NPM sits at the edge; limit exposure by allowing only required ports (80/443)
+- Use Access Lists and enforce HTTPS; avoid exposing admin panels directly
+- Prefer Cloudflare proxy or a VPN when you can’t forward ports
+
+## Step 1 — Compose file
+
+```yaml
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "81:81"   # Admin UI
+      - "443:443"
+    volumes:
+      - ./data:/data
+      - ./letsencrypt:/etc/letsencrypt
+```
+
+Start it:
+
+```bash
+mkdir -p ~/npm && cd ~/npm
+docker compose up -d
+```
+
+What this does: Launches NPM and persists config and certificates under the current folder.
+
+## Step 2 — First login
+
+Admin UI: http://SERVER_IP:81
+- Default creds: `admin@example.com` / `changeme` (you’ll be prompted to change)
+
+What this does: Creates your real admin account and secures the dashboard.
+
+## Step 3 — Add a Proxy Host
+
+- Hosts → Proxy Hosts → Add Proxy Host
+- Domain Names: `media.example.com`
+- Scheme: `http`
+- Forward Hostname/IP: `app-container` or `127.0.0.1`
+- Forward Port: e.g., `8080`
+- Block Common Exploits: enabled
+- Caching: optional
+
+SSL tab:
+- Request a new certificate → Force SSL → HTTP/2 support
+- Use a real email; DNS must point to your IP
+
+What this does: Creates a reverse proxy rule and requests a Let’s Encrypt cert via HTTP-01.
+
+## Step 4 — DNS and Port Forwarding
+
+- Port-forward TCP 80/443 on your router to this NPM host
+- Create A/AAAA records (or CNAMEs) for your services
+
+Tip: If behind CGNAT, use Cloudflare Tunnel instead of port forwarding.
+
+## Step 5 — Verify
+
+```bash
+curl -I http://media.example.com
+curl -I https://media.example.com
+```
+
+Expected: 301 from HTTP→HTTPS, and 200 from HTTPS with valid certificate.
+
+## Backups and data location
+- Backup `./data` and `./letsencrypt`
+
+```bash
+sudo tar -czf /backups/npm-$(date +%F).tgz data letsencrypt
+```
+
+## Troubleshooting
+- Cert fails: Ensure port 80 is reachable from the internet (HTTP-01)
+- 502 errors: Wrong upstream host/port; container may be down
+- Mixed content: App needs proper base URL; enforce HTTPS
+
+Logs:
+```bash
+docker compose logs -f nginx-proxy-manager | tail -200
+```
+
+## Security hardening checklist
+- Protect the dashboard with strong password and 2FA (if available)
+- Use Access Lists for sensitive apps
+- Keep NPM updated; rotate API tokens/credentials
+
+## Uninstall / rollback
+```bash
+docker compose down
+sudo rm -rf ~/npm   # ensure backups before removal
+```
+
+## FAQ
+- Q: Can I use Cloudflare proxy?  
+  A: Yes. For HTTP-01 ensure orange-cloud is enabled after issuance or use DNS-01.
+- Q: Where are certs stored?  
+  A: In `./letsencrypt` inside your project directory.
+
+## References
+- Project docs: https://nginxproxymanager.com/

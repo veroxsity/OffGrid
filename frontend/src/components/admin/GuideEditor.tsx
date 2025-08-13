@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import LoadingSpinner from '@/components/ui/loading-spinner';
@@ -105,6 +105,23 @@ export default function GuideEditor({ initialData, isEditing = false, onSave, on
     }));
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        // naive prevent double-submit
+        if (!isLoading) {
+          (async () => {
+            setIsLoading(true);
+            try { await onSave(formData); } finally { setIsLoading(false); }
+          })();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [formData, isLoading, onSave]);
+
   const fetchPreview = async () => {
     setPreviewLoading(true);
     setPreviewError('');
@@ -139,24 +156,20 @@ export default function GuideEditor({ initialData, isEditing = false, onSave, on
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-extrabold tracking-tight text-white">
             {isEditing ? 'Edit Guide' : 'Create New Guide'}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-[var(--ds-text-muted)] mt-1 text-sm">
             {isEditing ? 'Update your guide content and metadata' : 'Create a comprehensive guide for the community'}
           </p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={togglePreview}
-          >
-            {previewMode ? 'Edit' : 'Preview'}
-          </Button>
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center rounded-[6px] border border-[var(--ds-border-subtle)] bg-[var(--ds-background-tertiary)] overflow-hidden">
+            <button type="button" onClick={() => setPreviewMode(false)} className={`px-3 py-1.5 text-sm ${!previewMode ? 'bg-[var(--ds-background-secondary)] text-white' : 'text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]'}`}>Write</button>
+            <button type="button" onClick={() => { setPreviewMode(true); fetchPreview(); }} className={`px-3 py-1.5 text-sm ${previewMode ? 'bg-[var(--ds-background-secondary)] text-white' : 'text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]'}`}>Preview</button>
+          </div>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button onClick={async () => { setIsLoading(true); try { await onSave(formData);} finally { setIsLoading(false);} }} loading={isLoading}>{isEditing ? 'Update' : 'Create'}</Button>
         </div>
       </div>
 
@@ -171,42 +184,36 @@ export default function GuideEditor({ initialData, isEditing = false, onSave, on
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Title *
-                  </label>
+                  <label className="block text-xs text-[var(--ds-text-muted)] mb-1">Title *</label>
                   <input
                     type="text"
                     required
                     value={formData.title}
                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    placeholder="e.g., Setting up Plex Media Server on Ubuntu"
+                    className="input w-full"
+                    placeholder="e.g., Plex on Ubuntu"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Description *
-                  </label>
+                  <label className="block text-xs text-[var(--ds-text-muted)] mb-1">Description *</label>
                   <textarea
                     required
                     rows={3}
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="input w-full min-h-24"
                     placeholder="Brief description of what this guide covers..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Category *
-                  </label>
+                  <label className="block text-xs text-[var(--ds-text-muted)] mb-1">Category *</label>
                   <select
                     required
                     value={formData.category}
                     onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="input w-full"
                   >
                     {categories.map(category => (
                       <option key={category} value={category}>{category}</option>
@@ -216,56 +223,47 @@ export default function GuideEditor({ initialData, isEditing = false, onSave, on
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Difficulty *
-                    </label>
+                    <label className="block text-xs text-[var(--ds-text-muted)] mb-1">Difficulty *</label>
                     <select
                       required
                       value={formData.difficulty}
                       onChange={(e) => setFormData(prev => ({ ...prev, difficulty: e.target.value as any }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      className="input w-full"
                     >
                       {difficulties.map(difficulty => (
                         <option key={difficulty} value={difficulty}>{difficulty}</option>
                       ))}
                     </select>
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Time *
-                    </label>
+                    <label className="block text-xs text-[var(--ds-text-muted)] mb-1">Time *</label>
                     <input
                       type="text"
                       required
                       value={formData.time}
                       onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                      className="input w-full"
                       placeholder="e.g., 30 minutes"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.ukSpecific}
-                      onChange={(e) => setFormData(prev => ({ ...prev, ukSpecific: e.target.checked }))}
-                      className="rounded border-gray-300 text-red-600 focus:ring-red-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      🇬🇧 UK Specific Guide
-                    </span>
-                  </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.ukSpecific}
+                    onChange={(e) => setFormData(prev => ({ ...prev, ukSpecific: e.target.checked }))}
+                    className="accent-[var(--ds-background-accent)]"
+                  />
+                  <span className="text-sm text-[var(--ds-text-normal)]">🇬🇧 UK Specific Guide</span>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status *</label>
+                  <label className="block text-xs text-[var(--ds-text-muted)] mb-1">Status *</label>
                   <select
                     value={formData.status}
                     onChange={e => setFormData(p => ({ ...p, status: e.target.value as any }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="input w-full"
                   >
                     <option value="published">Published</option>
                     <option value="draft">Draft</option>
@@ -280,33 +278,22 @@ export default function GuideEditor({ initialData, isEditing = false, onSave, on
                 <CardDescription>Help users find your guide</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex space-x-2">
+                <div className="flex gap-2">
                   <input
                     type="text"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-                    placeholder="Add a tag..."
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
+                    className="input flex-1"
+                    placeholder="Add a tag and press Enter"
                   />
-                  <Button type="button" onClick={addTag} size="sm">
-                    Add
-                  </Button>
+                  <Button type="button" onClick={addTag} size="sm">Add</Button>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {formData.tags.map(tag => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                    >
+                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--ds-background-tertiary)] text-[var(--ds-text-muted)] border border-[var(--ds-border-subtle)]">
                       #{tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        className="ml-1 text-red-600 hover:text-red-800"
-                      >
-                        ×
-                      </button>
+                      <button type="button" onClick={() => removeTag(tag)} className="hover:text-white">×</button>
                     </span>
                   ))}
                 </div>
@@ -319,33 +306,22 @@ export default function GuideEditor({ initialData, isEditing = false, onSave, on
                 <CardDescription>Platforms this guide was tested on</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex space-x-2">
+                <div className="flex gap-2">
                   <input
                     type="text"
                     value={testedOnInput}
                     onChange={(e) => setTestedOnInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTestedOn())}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTestedOn(); } }}
+                    className="input flex-1"
                     placeholder="e.g., Ubuntu 22.04"
                   />
-                  <Button type="button" onClick={addTestedOn} size="sm">
-                    Add
-                  </Button>
+                  <Button type="button" onClick={addTestedOn} size="sm">Add</Button>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {formData.testedOn.map(item => (
-                    <span
-                      key={item}
-                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"
-                    >
+                    <span key={item} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--ds-background-tertiary)] text-[var(--ds-text-muted)] border border-[var(--ds-border-subtle)]">
                       {item}
-                      <button
-                        type="button"
-                        onClick={() => removeTestedOn(item)}
-                        className="ml-1 text-gray-600 hover:text-gray-800"
-                      >
-                        ×
-                      </button>
+                      <button type="button" onClick={() => removeTestedOn(item)} className="hover:text-white">×</button>
                     </span>
                   ))}
                 </div>
@@ -356,77 +332,53 @@ export default function GuideEditor({ initialData, isEditing = false, onSave, on
           {/* Content Section */}
           <div className="lg:col-span-2">
             <Card className="h-full">
-              <CardHeader>
-                <CardTitle>Guide Content</CardTitle>
-                <CardDescription>
-                  Write your guide in MDX format. You can use markdown syntax and include code blocks.
-                </CardDescription>
+              <CardHeader className="sticky top-14 z-10 bg-[var(--ds-background-secondary)] border-b border-[var(--ds-border-subtle)] rounded-t-[8px]">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Guide Content</CardTitle>
+                    <CardDescription>Write in MDX. Code fences supported.</CardDescription>
+                  </div>
+                  <div className="flex items-center rounded-[6px] border border-[var(--ds-border-subtle)] bg-[var(--ds-background-tertiary)] overflow-hidden">
+                    <button type="button" onClick={() => setPreviewMode(false)} className={`px-3 py-1.5 text-sm ${!previewMode ? 'bg-[var(--ds-background-secondary)] text-white' : 'text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]'}`}>Write</button>
+                    <button type="button" onClick={() => { setPreviewMode(true); fetchPreview(); }} className={`px-3 py-1.5 text-sm ${previewMode ? 'bg-[var(--ds-background-secondary)] text-white' : 'text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]'}`}>Preview</button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {previewMode ? (
-                  <div className="border border-gray-300 dark:border-gray-600 rounded-lg min-h-96 bg-gray-50 dark:bg-gray-800 relative">
+                  <div className="border border-[var(--ds-border-subtle)] rounded-lg min-h-96 bg-[var(--ds-background-primary)] relative">
                     {previewLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 dark:bg-gray-900/70 rounded-lg">
+                      <div className="absolute inset-0 flex items-center justify-center bg-[var(--ds-background-floating)]/70 rounded-lg">
                         <LoadingSpinner size="sm" text="Rendering preview" />
                       </div>
                     )}
                     {!previewLoading && previewError && (
-                      <div className="p-4 text-sm text-red-600 dark:text-red-400 font-medium">{previewError}</div>
+                      <div className="p-4 text-sm text-[var(--ds-danger)] font-medium">{previewError}</div>
                     )}
                     {!previewLoading && !previewError && (
                       <div className="prose prose-sm dark:prose-invert max-w-none p-4" dangerouslySetInnerHTML={{ __html: previewHtml }} />
                     )}
-                    <div className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-900/40 text-xs text-gray-600 dark:text-gray-400">
-                      <span>Preview (sanitized)</span>
-                      <button type="button" onClick={fetchPreview} className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:underline disabled:opacity-50" disabled={previewLoading}>
-                        Refresh
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                      </button>
-                    </div>
                   </div>
                 ) : (
-                  <textarea
-                    required
-                    value={formData.content}
-                    onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                    className="w-full h-96 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono text-sm"
-                    placeholder="# Your Guide Title
-
-## Prerequisites
-
-Before starting, you'll need:
-
-- Item 1
-- Item 2
-
-## Step 1: Getting Started
-
-Your guide content here...
-
-```bash
-# Code example
-sudo apt update
-```
-
-> **Note:** This is a callout box for important information.
-
-## Troubleshooting
-
-Common issues and solutions..."
-                  />
+                  <>
+                    <textarea
+                      required
+                      value={formData.content}
+                      onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
+                      className="w-full h-[32rem] px-3 py-2 border border-[var(--ds-border-subtle)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ds-background-accent)] bg-[var(--ds-background-primary)] text-white font-mono text-sm"
+                      placeholder={`# Your Guide Title\n\n## Prerequisites\n- Item 1\n\n## Step 1\n\n\`\`\`bash\n# Code example\nsudo apt update\n\`\`\`\n`}
+                    />
+                    <div className="mt-2 text-[11px] text-[var(--ds-text-muted)]">Tip: Press Ctrl/Cmd+S to save quickly.</div>
+                  </>
                 )}
               </CardContent>
             </Card>
           </div>
         </div>
 
-        <div className="flex justify-end space-x-3 pt-6">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" loading={isLoading}>
-            {isEditing ? 'Update Guide' : 'Create Guide'}
-          </Button>
+        <div className="flex justify-end gap-2 pt-6">
+          <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button type="submit" loading={isLoading}>{isEditing ? 'Update Guide' : 'Create Guide'}</Button>
         </div>
       </form>
     </div>

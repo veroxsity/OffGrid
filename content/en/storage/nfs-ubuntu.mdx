@@ -1,0 +1,40 @@
+---
+title: "NFS Server on Ubuntu"
+description: "Serve network file shares via NFS for Linux/Unix and some NAS clients."
+category: "Storage"
+difficulty: "Beginner"
+time: "15 minutes"
+ukSpecific: false
+status: "published"
+tags: ["nfs","linux","storage","ubuntu"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# NFS Server on Ubuntu
+
+## Install
+
+```bash
+sudo apt update && sudo apt install -y nfs-kernel-server
+```
+
+## Export a folder
+
+```bash
+sudo mkdir -p /srv/nfs/share
+sudo chown -R nobody:nogroup /srv/nfs/share
+
+echo "/srv/nfs/share 192.168.1.0/24(rw,sync,no_subtree_check)" | sudo tee -a /etc/exports
+sudo exportfs -ra
+sudo systemctl enable --now nfs-server
+```
+
+## Mount from clients
+
+```bash
+sudo apt install -y nfs-common
+sudo mount -t nfs SERVER_IP:/srv/nfs/share /mnt
+```
+
+Make persistent via `/etc/fstab`.

@@ -1,0 +1,104 @@
+---
+title: "Authelia 2FA SSO behind Nginx Proxy Manager (Docker)"
+description: "Protect apps with SSO and 2FA using Authelia behind NPM as a forward auth provider."
+category: "Security"
+difficulty: "Advanced"
+time: "45 minutes"
+ukSpecific: false
+status: "published"
+tags: ["authelia","sso","2fa","nginx-proxy-manager","security","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04"]
+---
+
+# Authelia 2FA SSO behind Nginx Proxy Manager (Docker)
+
+Use Authelia to add login + 2FA in front of internal apps.
+
+## 1) Folders
+
+```bash
+mkdir -p ~/authelia/{config,secrets}
+``` 
+
+## 2) docker-compose.yaml
+
+```yaml
+services:
+  authelia:
+    image: authelia/authelia:latest
+    container_name: authelia
+    volumes:
+      - ./config:/config
+      - ./secrets:/secrets:ro
+    environment:
+      - TZ=Europe/London
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+```
+
+## 3) Configuration
+
+Create `./config/configuration.yml`:
+
+```yaml
+server:
+  address: "0.0.0.0:9091"
+jwt_secret: "change-me-long-random"
+session:
+  name: authelia_session
+  secret: "change-me-long-random"
+  expiration: 3600
+  inactivity: 300
+  domain: example.com
+storage:
+  encryption_key: "change-me-long-random"
+  local:
+    path: /config/db.sqlite3
+identity_providers:
+  oidc: {} # optional
+access_control:
+  default_policy: deny
+  rules:
+    - domain: "*.example.com"
+      policy: two_factor
+
+authentication_backend:
+  file:
+    path: /config/users.yml
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt
+```
+
+Create `./config/users.yml`:
+
+```yaml
+users:
+  user:
+    displayname: "User"
+    password: "$argon2id$v=19$m=65536,t=3,p=4$..." # generate via authelia hash-password
+    email: user@example.com
+```
+
+## 4) NPM Forward Auth
+
+In NPM → Access Lists → Add Authorization → Forward Auth:
+- Forward Auth URL: `http://authelia:9091/api/verify?rd=https://auth.example.com/`
+- Forward Auth Secret: empty
+- Pass Authorization: enabled
+
+Apply this Access List to any Proxy Host you wish to protect.
+
+## 5) DNS
+
+- Create `auth.example.com` pointing to NPM.
+- In NPM, create a Proxy Host for `auth.example.com` → forward to `http://authelia:9091` and enable SSL.
+
+## Tips
+
+- Use an SMTP notifier for emails.
+- Move secrets to `./secrets` and reference via environment vars in config.

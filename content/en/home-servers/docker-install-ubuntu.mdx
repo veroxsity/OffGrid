@@ -1,0 +1,124 @@
+---
+title: "Install Docker and Docker Compose on Ubuntu 22.04/24.04"
+description: "Fast, reliable Docker + Compose setup for Ubuntu. Includes post-install hardening and troubleshooting."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "15 minutes"
+ukSpecific: false
+status: "published"
+tags: ["docker","compose","ubuntu","containers","home-server"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+prerequisites:
+  - "Fresh Ubuntu server with sudo access"
+  - "Basic terminal usage"
+---
+
+# Install Docker and Docker Compose on Ubuntu 22.04/24.04
+
+Get Docker Engine and the Compose plugin installed cleanly, add your user to the docker group, and verify with a quick test.
+
+## 1) Remove old Docker (if present)
+
+```bash
+sudo apt remove -y docker docker-engine docker.io containerd runc || true
+```
+
+## 2) Install dependencies
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg lsb-release
+```
+
+## 3) Add Docker’s official GPG key and repo
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Add repo
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo $UBUNTU_CODENAME) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update
+```
+
+## 4) Install Docker Engine + CLI + Compose plugin
+
+```bash
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+## 5) Enable and test
+
+```bash
+# Enable at boot
+sudo systemctl enable --now docker
+
+# Add your user to the docker group (relogin required)
+sudo usermod -aG docker "$USER"
+
+# Test (log out/in or run with sudo until new session)
+docker version
+sudo docker run --rm hello-world
+```
+
+## 6) Verify Compose plugin
+
+```bash
+docker compose version
+```
+
+If you see a version, you’re good. Use `docker compose` (space) rather than the old `docker-compose` binary.
+
+## 7) Optional: Tune storage driver and logs
+
+```bash
+# Limit container logs to prevent disk bloat
+sudo mkdir -p /etc/docker
+cat <<'JSON' | sudo tee /etc/docker/daemon.json
+{
+  "log-driver": "json-file",
+  "log-opts": {"max-size": "10m", "max-file": "3"},
+  "storage-driver": "overlay2"
+}
+JSON
+
+sudo systemctl restart docker
+```
+
+## 8) Sample docker-compose.yaml
+
+```yaml
+services:
+  whoami:
+    image: traefik/whoami
+    container_name: whoami
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+```
+
+Start it:
+
+```bash
+docker compose up -d
+curl http://localhost:8080
+```
+
+## Troubleshooting
+
+- Permission denied: log out/in after adding your user to `docker` group.
+- Old compose: Use `docker compose`, not `docker-compose`.
+- Service won’t start: `journalctl -u docker -e` for logs.
+
+## Security basics
+
+- Don’t expose the Docker API on the network unless you know what you’re doing.
+- Keep Docker updated: `sudo apt update && sudo apt upgrade`.
+- Prefer least-privilege images; avoid `:latest` in production.

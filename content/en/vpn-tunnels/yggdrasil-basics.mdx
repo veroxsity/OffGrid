@@ -1,0 +1,47 @@
+---
+title: "Yggdrasil Mesh Networking Basics (Linux)"
+description: "Join a global encrypted mesh network with IPv6 addressing—great for CGNAT."
+category: "VPN & Tunnels"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["yggdrasil","mesh","ipv6","p2p"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Debian 12"]
+---
+
+# Yggdrasil Mesh Networking Basics (Linux)
+
+Yggdrasil creates an encrypted IPv6 mesh overlay between nodes.
+
+## Install
+
+```bash
+curl -s https://repo.yggdrasil-network.github.io/install.sh | sudo bash
+sudo apt install -y yggdrasil
+```
+
+## Configure
+
+```bash
+sudo yggdrasil -genconf | sudo tee /etc/yggdrasil.conf
+sudo systemctl enable --now yggdrasil
+```
+
+Edit peers in `/etc/yggdrasil.conf` to add public peers for faster convergence.
+
+## Verify
+
+```bash
+ip -6 addr show yggdrasil0
+yggdrasilctl getPeers
+```
+
+Use the assigned IPv6 to reach other nodes directly.
+
+## Notes
+
+- CGNAT-friendly; no port forwarding required.
+- Restrict exposed services to Yggdrasil interface (firewall) if needed.

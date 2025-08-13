@@ -35,36 +35,106 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full header-discord">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-        <div className="flex justify-between items-center h-14">
+        <div className="relative flex justify-between items-center h-14">
           {/* Logo */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
             <Link href="/" className="flex items-center gap-2 group">
               <div className="w-8 h-8 rounded-md bg-[var(--ds-background-accent)] text-white flex items-center justify-center">⚡</div>
               <span className="text-[15px] font-semibold text-[var(--ds-text-normal)] group-hover:text-white transition-colors">
                 Off-Grid Freedom
               </span>
             </Link>
+            {/* Desktop Hamburger Menu */}
+            <div className="hidden md:block relative">
+              <button
+                onClick={() => setIsMenuOpen((o) => !o)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-[6px] text-sm font-medium border border-[var(--ds-border-subtle)] bg-[var(--ds-background-tertiary)] text-[var(--ds-text-normal)] hover:bg-[var(--ds-background-secondary)] focus:ring-2 focus:ring-[var(--ds-background-accent)] focus:outline-none"
+                aria-haspopup="true"
+                aria-expanded={isMenuOpen}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <span className="hidden lg:inline">Menu</span>
+              </button>
+              {isMenuOpen && (
+                <div className="absolute left-0 mt-2 w-80 rounded-[8px] border border-[var(--ds-border-subtle)] bg-[var(--ds-background-secondary)] shadow-lg p-2 z-50">
+                  <div className="px-2 py-1.5 text-[11px] uppercase tracking-wide text-[var(--ds-text-muted)]">Browse</div>
+                  <div className="grid grid-cols-2 gap-1 p-1">
+                    {navigation.map((item) => (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => setIsMenuOpen(false)}
+                        className="px-3 py-2 rounded-[6px] text-sm text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)] hover:bg-[var(--ds-background-tertiary)]"
+                      >
+                        {item.name}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="my-2 h-px bg-[var(--ds-border-subtle)]" />
+                  <div className="px-2 py-1.5 text-[11px] uppercase tracking-wide text-[var(--ds-text-muted)]">Account</div>
+                  <div className="flex flex-col gap-1 p-1">
+                    {status === 'authenticated' ? (
+                      <>
+                        <Link
+                          href="/dashboard"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="px-3 py-2 rounded-[6px] text-sm hover:bg-[var(--ds-background-tertiary)] text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]"
+                        >
+                          Dashboard
+                        </Link>
+                        <Link
+                          href="/user/profile"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="px-3 py-2 rounded-[6px] text-sm hover:bg-[var(--ds-background-tertiary)] text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]"
+                        >
+                          Profile
+                        </Link>
+                        {session?.user?.role === 'ADMIN' && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsMenuOpen(false)}
+                            className="px-3 py-2 rounded-[6px] text-sm hover:bg-[var(--ds-background-tertiary)] text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]"
+                          >
+                            Admin
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            signOut();
+                          }}
+                          className="text-left px-3 py-2 rounded-[6px] text-sm text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)] hover:bg-[var(--ds-background-tertiary)]"
+                        >
+                          Sign Out
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            signIn();
+                          }}
+                          className="text-left px-3 py-2 rounded-[6px] text-sm text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)] hover:bg-[var(--ds-background-tertiary)]"
+                        >
+                          Sign In
+                        </button>
+                        <Link
+                          href="/auth/signin"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="px-3 py-2 rounded-[6px] text-sm text-[var(--ds-text-normal)] bg-[var(--ds-background-accent)] text-white hover:opacity-90"
+                        >
+                          Get Started
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navigation.map((item) => {
-              const active = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`relative px-3 py-2 rounded-[6px] text-sm font-medium ${
-                    active
-                      ? 'sidebar-nav-item sidebar-nav-item--active !m-0 !text-[var(--ds-text-normal)]'
-                      : 'text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)] hover:bg-[var(--ds-background-secondary)]'
-                  }`}
-                >
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
 
           {/* Search and Auth */}
           <div className="flex items-center gap-3">
@@ -143,18 +213,13 @@ const Header = () => {
                 <div className="w-8 h-8 rounded-full bg-[var(--ds-background-tertiary)] animate-pulse"></div>
               ) : session ? (
                 <div className="flex items-center gap-3">
-                  <Link href="/dashboard" className="text-sm text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]">
-                    Dashboard
-                  </Link>
+                  {/* keep avatar as profile entry; remove noisy text links */}
                   {session.user?.image && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={session.user.image}
-                      alt={session.user.name || 'User'}
-                      className="w-8 h-8 rounded-full"
-                    />
+                    <Link href="/user/profile" className="shrink-0">
+                      <img src={session.user.image} alt={session.user.name || 'User'} className="w-8 h-8 rounded-full" />
+                    </Link>
                   )}
-                  <span className="text-sm text-[var(--ds-text-muted)]">{session.user?.name}</span>
                   <button onClick={() => signOut()} className="text-sm text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)]">
                     Sign Out
                   </button>
@@ -237,6 +302,13 @@ const Header = () => {
                       )}
                       <span className="text-sm text-[var(--ds-text-muted)]">{session.user?.name}</span>
                     </div>
+                    <Link
+                      href="/user/profile"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="block w-full text-left px-3 py-2 text-base font-medium text-[var(--ds-text-muted)] hover:text-[var(--ds-text-normal)] hover:bg-[var(--ds-background-secondary)] rounded-[6px]"
+                    >
+                      Profile
+                    </Link>
                     <button
                       onClick={() => {
                         signOut();

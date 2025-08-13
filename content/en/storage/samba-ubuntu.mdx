@@ -1,0 +1,188 @@
+---
+title: "Samba (SMB) File Share on Ubuntu"
+description: "Create a simple Windows/macOS-compatible network share on Ubuntu."
+category: "Storage"
+difficulty: "Beginner"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["samba","smb","file-share","ubuntu","windows"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+prerequisites:
+  - "A data disk or folder to share"
+---
+
+# Samba (SMB) File Share on Ubuntu
+
+Share a folder over your LAN using the SMB protocol with safe defaults. Works with Windows and macOS.
+
+> TL;DR: Install Samba, create a dedicated share and user, lock down access, and verify from Windows/macOS.
+
+## Before you begin
+- Ensure the system is updated and you have sudo
+- Decide the share path and ownership model (single user vs. per-user)
+- If using a data disk, mount it persistently (e.g., via /etc/fstab)
+
+```bash
+sudo apt update && sudo apt -y upgrade
+sudo apt -y install samba smbclient ufw
+```
+
+What this does: Updates packages and installs Samba, the SMB client, and UFW for basic firewalling.
+
+## Security model and defaults
+- Disable guest access; require authentication per user
+- Default deny inbound firewall; explicitly allow Samba from LAN only
+- Do not expose SMB to the internet; access remotely via VPN (e.g., WireGuard)
+
+```bash
+# UFW baseline (optional but recommended)
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from 192.168.0.0/16 to any app Samba   # adjust LAN CIDR
+sudo ufw enable
+```
+
+What this does: Restricts SMB access to your LAN and denies unsolicited inbound traffic.
+
+## 1) Install Samba
+
+```bash
+sudo apt update
+sudo apt install -y samba
+```
+
+What this does: Installs the Samba server (smbd) and related services.
+
+## 2) Create a share folder and user
+
+Choose a path for your share. For a single-user share:
+
+```bash
+sudo mkdir -p /srv/share
+sudo chown -R $USER:$USER /srv/share
+
+# Create a Samba-only password for your Linux user
+sudo smbpasswd -a $USER
+```
+
+What this does: Prepares a directory owned by your account and enables an SMB password for that account.
+
+Tip (multi-user): Create a dedicated group and add users to it, then set directory group ownership and permissions accordingly.
+
+```bash
+sudo groupadd fileshare
+sudo usermod -aG fileshare $USER
+sudo chgrp -R fileshare /srv/share
+sudo chmod -R 2775 /srv/share   # setgid so new files inherit group
+```
+
+## 3) Configure the share
+
+Open the Samba config and append a new share definition.
+
+```bash
+sudo nano /etc/samba/smb.conf
+```
+
+Append to the end:
+
+```ini
+[PublicShare]
+   path = /srv/share
+   browseable = yes
+   read only = no
+   guest ok = no
+   create mask = 0664
+   directory mask = 0775
+   valid users = @fileshare, %U
+```
+
+What this does: Creates a writable authenticated share. Only the connecting user (or members of fileshare) can access it.
+
+Restart and enable services:
+
+```bash
+sudo systemctl restart smbd nmbd
+sudo systemctl enable smbd nmbd
+sudo systemctl status smbd --no-pager
+```
+
+Expected: smbd is active (running) with no errors in status output.
+
+## 4) Verify locally
+
+List available shares via SMB loopback:
+
+```bash
+smbclient -L localhost -U "$USER"
+```
+
+Expected: You should see PublicShare listed. If prompted, enter the SMB password you set with smbpasswd.
+
+## 5) Connect from clients
+
+- Windows: File Explorer → \\SERVER_IP\PublicShare, authenticate with the Linux user and your SMB password.
+- macOS: Finder → Go → Connect to Server → smb://SERVER_IP/PublicShare. Use your Linux username/password.
+
+Tip (Windows): If name resolution fails, connect via IP. Ensure “Network Discovery” is enabled on the client.
+
+## Backups and permissions
+- Back up the data path and the Samba config: `/srv/share` and `/etc/samba/smb.conf`
+- Keep a record of which users have access (group membership if using fileshare)
+
+```bash
+sudo tar -czf /backups/samba-$(date +%F).tgz /etc/samba/smb.conf /srv/share
+```
+
+What this does: Archives the share data and configuration with a date stamp.
+
+## Troubleshooting
+
+- Permission denied when connecting
+  - Ensure directory ownership/permissions match your user or group.
+  - Verify `valid users` includes your user or a group you’re in.
+
+- Share not visible in Windows “Network”
+  - Try connecting directly via \\SERVER_IP\PublicShare.
+  - Ensure the `nmbd` (NetBIOS) service is running for legacy discovery; modern clients may rely on mDNS/WS-Discovery instead.
+
+- Authentication prompts keep reappearing
+  - Confirm you set an SMB password: `sudo smbpasswd -a $USER`.
+  - On Windows, clear cached credentials (Credential Manager) and reconnect.
+
+- Can’t connect from outside home
+  - SMB should not be exposed to the internet. Use a VPN to reach your LAN, then connect as usual.
+
+View logs for errors:
+```bash
+sudo journalctl -u smbd -n 200 --no-pager
+```
+
+## Security hardening checklist
+- Disable guest access (`guest ok = no`)
+- Restrict share access via `valid users` and UNIX permissions/groups
+- Limit SMB to LAN in the firewall
+- Keep Samba updated (`sudo apt update && sudo apt upgrade`)
+- Consider disabling SMB1 on clients and server
+
+## Uninstall / rollback
+```bash
+sudo systemctl disable --now smbd nmbd
+sudo apt -y purge samba
+sudo rm -rf /srv/share   # only if you want to remove data (ensure backups!)
+```
+
+What this does: Stops and removes Samba and optionally deletes the share directory.
+
+## FAQ
+- Q: How do I make a read-only share?
+  - A: Set `read only = yes` (and remove write permissions on the directory for safety).
+- Q: Map a network drive on Windows?
+  - A: Right-click This PC → Map network drive → \\SERVER_IP\PublicShare.
+
+## References
+- Samba documentation: https://www.samba.org/samba/docs/
+- Ubuntu Server Guide (Samba): https://ubuntu.com/server/docs/samba-introduction

@@ -1,0 +1,27 @@
+---
+title: "Linkding (Bookmarks) with Docker"
+description: "Minimal, fast self-hosted bookmarking service."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "5 minutes"
+ukSpecific: false
+status: "published"
+tags: ["linkding","bookmarks","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Linkding (Bookmarks) with Docker
+
+```yaml
+services:
+  linkding:
+    image: sissbruecker/linkding:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./data:/etc/linkding/data
+    restart: unless-stopped
+```
+
+Login at `http://SERVER_IP:9090` (default admin created on first run).

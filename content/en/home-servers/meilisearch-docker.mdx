@@ -1,0 +1,29 @@
+---
+title: "Meilisearch with Docker"
+description: "Blazing-fast, lightweight search engine for your apps."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["meilisearch","search","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Meilisearch with Docker
+
+```yaml
+services:
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    environment:
+      MEILI_MASTER_KEY: change-me
+    ports:
+      - "7700:7700"
+    volumes:
+      - ./data:/meili_data
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:7700` and set an API key for clients.

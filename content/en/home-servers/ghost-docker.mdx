@@ -1,0 +1,46 @@
+---
+title: "Ghost Blog with Docker"
+description: "Run the Ghost publishing platform with Docker and a MySQL backend."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "30 minutes"
+ukSpecific: false
+status: "published"
+tags: ["ghost","blog","mysql","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Ghost Blog with Docker
+
+```yaml
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: change-me
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: change-me
+    volumes:
+      - ./mysql:/var/lib/mysql
+    restart: unless-stopped
+
+  ghost:
+    image: ghost:5
+    environment:
+      database__client: mysql
+      database__connection__host: mysql
+      database__connection__user: ghost
+      database__connection__password: change-me
+      database__connection__database: ghost
+    ports:
+      - "2368:2368"
+    volumes:
+      - ./content:/var/lib/ghost/content
+    depends_on:
+      - mysql
+    restart: unless-stopped
+```
+
+Visit `http://SERVER_IP:2368`.

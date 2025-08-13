@@ -1,0 +1,29 @@
+---
+title: "Forgejo (Git hosting) with Docker"
+description: "Community-driven fork of Gitea for Git hosting."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["forgejo","git","ci","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Forgejo (Git hosting) with Docker
+
+```yaml
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:latest
+    user: "1000:1000"
+    ports:
+      - "3001:3000"
+      - "223:22"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:3001`.

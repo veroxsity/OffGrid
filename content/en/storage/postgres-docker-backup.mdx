@@ -1,0 +1,31 @@
+---
+title: "PostgreSQL in Docker: Backup and Restore"
+description: "Use pg_dump/pg_restore and WAL archiving for reliable backups."
+category: "Storage"
+difficulty: "Intermediate"
+time: "25 minutes"
+ukSpecific: false
+status: "published"
+tags: ["postgresql","backup","docker","wal"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# PostgreSQL in Docker: Backup and Restore
+
+## One-off backup
+
+```bash
+docker exec -t postgres pg_dump -U postgres -d mydb | gzip > backup.sql.gz
+```
+
+## Restore
+
+```bash
+gunzip -c backup.sql.gz | docker exec -i postgres psql -U postgres -d mydb
+```
+
+## WAL archiving (advanced)
+
+- Mount `/var/lib/postgresql/data/pg_wal` and configure `archive_mode=on` and `archive_command` in `postgresql.conf`.
+- Point to a safe archive directory or object storage (e.g., MinIO) for PITR.

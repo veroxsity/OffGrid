@@ -1,0 +1,49 @@
+---
+title: "Syncthing (Private File Sync) with Docker"
+description: "Peer-to-peer file sync across devices with no central server."
+category: "Storage"
+difficulty: "Beginner"
+time: "15 minutes"
+ukSpecific: false
+status: "published"
+tags: ["syncthing","sync","docker","p2p","files"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+---
+
+# Syncthing (Private File Sync) with Docker
+
+Sync folders across devices over LAN/Internet.
+
+## Compose
+
+```yaml
+services:
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:latest
+    container_name: syncthing
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - ./config:/config
+      - /srv/sync:/data
+    ports:
+      - 8384:8384   # Web UI
+      - 22000:22000/tcp
+      - 22000:22000/udp
+      - 21027:21027/udp # discovery
+    restart: unless-stopped
+```
+
+Start and open `http://SERVER_IP:8384`.
+
+Add devices by ID, share folders, and approve.
+
+## Notes
+
+- For WAN use, forward 22000 TCP/UDP.
+- Back up `./config`.
+- Use versioning per-folder for safe rollbacks.

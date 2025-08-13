@@ -1,0 +1,60 @@
+---
+title: "Cloudflare Tunnel on Linux (Expose Services Without Ports)"
+description: "Securely expose local services to the internet with Cloudflare Tunnel—no port forwarding."
+category: "VPN & Tunnels"
+difficulty: "Beginner"
+time: "15 minutes"
+ukSpecific: false
+status: "published"
+tags: ["cloudflare","tunnel","argo","reverse-proxy","zero-trust"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Debian 12"]
+---
+
+# Cloudflare Tunnel on Linux (Expose Services Without Ports)
+
+Use `cloudflared` to publish local services via Cloudflare’s edge.
+
+## Install
+
+```bash
+curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
+sudo dpkg -i cloudflared.deb || sudo apt -f install -y
+```
+
+## Login and create a tunnel
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create homelab
+```
+
+## Route a hostname
+
+```bash
+cloudflared tunnel route dns homelab app.example.com
+```
+
+## Configure and run
+
+```bash
+sudo mkdir -p /etc/cloudflared
+sudo tee /etc/cloudflared/config.yml >/dev/null <<'YAML'
+tunnel: homelab
+credentials-file: /home/$USER/.cloudflared/*.json
+ingress:
+  - hostname: app.example.com
+    service: http://localhost:8080
+  - service: http_status:404
+YAML
+
+sudo cloudflared service install
+sudo systemctl enable --now cloudflared
+```
+
+## Tips
+
+- Put multiple hosts under `ingress`.
+- Use Cloudflare Zero Trust policies for auth in front of apps.
+- If behind CGNAT, this avoids router changes entirely.

@@ -1,0 +1,29 @@
+---
+title: "Home Assistant with Docker"
+description: "Automate your home with integrations, dashboards, and automations."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "25 minutes"
+ukSpecific: false
+status: "published"
+tags: ["home-assistant","ha","automation","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Home Assistant with Docker
+
+## Compose
+
+```yaml
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    volumes:
+      - ./config:/config
+    network_mode: host  # recommended for discovery
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:8123` and follow onboarding.

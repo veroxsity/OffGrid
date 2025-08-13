@@ -1,0 +1,31 @@
+---
+title: "n8n (Automation) with Docker"
+description: "Self-hosted Zapier alternative for workflows and automations."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["n8n","automation","workflows","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# n8n (Automation) with Docker
+
+```yaml
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=change-me
+    ports:
+      - "5678:5678"
+    volumes:
+      - ./data:/home/node/.n8n
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:5678`.

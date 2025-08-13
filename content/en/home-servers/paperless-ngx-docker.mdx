@@ -1,0 +1,40 @@
+---
+title: "Paperless-ngx (Document Management) with Docker"
+description: "Scan, OCR, and organize documents locally with Paperless-ngx."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "25 minutes"
+ukSpecific: false
+status: "published"
+tags: ["paperless-ngx","ocr","documents","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Paperless-ngx (Document Management) with Docker
+
+## Compose
+
+```yaml
+services:
+  broker:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    depends_on:
+      - broker
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/usr/src/paperless/data
+      - ./media:/usr/src/paperless/media
+      - ./consume:/usr/src/paperless/consume
+    environment:
+      - PAPERLESS_REDIS=redis://broker:6379
+      - PAPERLESS_SECRET_KEY=change-me-random
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:8000` → create admin → drop PDFs into `./consume`.

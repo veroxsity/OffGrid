@@ -1,0 +1,49 @@
+---
+title: "OpenWrt Basics: Install and First Steps"
+description: "Flash OpenWrt, secure it, set Wi‑Fi and DNS, and prepare for homelab use."
+category: "Networking"
+difficulty: "Intermediate"
+time: "30 minutes"
+ukSpecific: false
+status: "published"
+tags: ["openwrt","router","wifi","dns","dhcp"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["OpenWrt 23.05"]
+---
+
+# OpenWrt Basics: Install and First Steps
+
+Modern, open firmware for supported routers.
+
+## 1) Flash
+
+- Download the correct factory image from openwrt.org for your model.
+- Use the stock firmware upgrade page to flash; avoid power loss.
+
+## 2) Secure and update
+
+- Set root password on first login (`http://192.168.1.1`).
+- SSH in and update packages:
+
+```bash
+opkg update && opkg list-upgradable | cut -f 1 -d ' ' | xargs -r opkg upgrade
+```
+
+## 3) Wi‑Fi and SSID
+
+- Network → Wireless → set SSID, WPA2/3, strong passphrase.
+
+## 4) DNS and DHCP
+
+- To use Pi-hole: Network → DHCP and DNS → Upstream DNS: `192.168.1.2` (Pi-hole IP).
+- Static leases for servers: Network → DHCP and DNS → Static Leases.
+
+## 5) Backup/restore
+
+- System → Backup / Flash Firmware → Generate archive.
+
+## Notes
+
+- Prefer WPA2/WPA3 mixed for compatibility.
+- Keep router cool; poor thermals cause instability.

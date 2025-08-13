@@ -1,0 +1,28 @@
+---
+title: "FreshRSS with Docker"
+description: "Self-hosted RSS aggregator with multi-user support."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["freshrss","rss","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# FreshRSS with Docker
+
+```yaml
+services:
+  freshrss:
+    image: freshrss/freshrss:latest
+    ports:
+      - "8086:80"
+    volumes:
+      - ./data:/var/www/FreshRSS/data
+      - ./extensions:/var/www/FreshRSS/extensions
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:8086` → admin setup.

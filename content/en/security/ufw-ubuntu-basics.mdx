@@ -1,0 +1,70 @@
+---
+title: "UFW Firewall Basics on Ubuntu"
+description: "Lock down your server with uncomplicated firewall rules."
+category: "Security"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["ufw","firewall","ubuntu","security"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+---
+
+# UFW Firewall Basics on Ubuntu
+
+UFW makes iptables manageable. Default deny, then allow only what you need.
+
+## 1) Install and check status
+
+```bash
+sudo apt update
+sudo apt install -y ufw
+sudo ufw status verbose
+```
+
+## 2) Default deny
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+```
+
+## 3) Allow common services
+
+```bash
+# SSH (change port if you’ve customized it)
+sudo ufw allow ssh
+
+# Web
+sudo ufw allow http
+sudo ufw allow https
+
+# Example: WireGuard
+sudo ufw allow 51820/udp
+```
+
+## 4) Enable UFW
+
+```bash
+sudo ufw enable
+sudo ufw status numbered
+```
+
+## 5) Manage rules
+
+```bash
+# Delete by number
+sudo ufw status numbered
+sudo ufw delete 2
+
+# Allow a subnet
+sudo ufw allow from 192.168.1.0/24 to any port 22 proto tcp
+```
+
+## Tips
+
+- Place UFW rules before enabling to avoid lockouts.
+- Use `limit ssh` to rate-limit SSH.
+- For Docker, consider `ufw-docker` helpers or guard exposed ports carefully.

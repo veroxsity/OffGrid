@@ -1,0 +1,95 @@
+---
+title: "Encrypted Backups with Restic + Rclone (Cloud)"
+description: "Automate encrypted backups to B2/R2/S3 using Restic with Rclone remotes."
+category: "Storage"
+difficulty: "Intermediate"
+time: "30 minutes"
+ukSpecific: false
+status: "published"
+tags: ["restic","rclone","backup","encryption","s3","b2","r2"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Debian 12"]
+---
+
+# Encrypted Backups with Restic + Rclone (Cloud)
+
+Restic provides fast, deduplicated, encrypted backups. Rclone abstracts cloud providers.
+
+## Install
+
+```bash
+sudo apt update && sudo apt install -y rclone restic
+```
+
+## Configure Rclone remote (example: Backblaze B2)
+
+```bash
+rclone config
+# n (new remote) → name: b2 → type: backblaze b2 → set key/secret
+```
+
+## Initialize a repo
+
+```bash
+# Rclone remote path format: remote:bucket/path
+export RESTIC_PASSWORD="change-this"
+restic -r rclone:b2:mybucket/restic-repo init
+```
+
+## Backup script
+
+```bash
+sudo tee /usr/local/bin/backup-restic.sh >/dev/null <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+export RESTIC_PASSWORD="change-this"
+RESTIC_REPO="rclone:b2:mybucket/restic-repo"
+SRC="/srv/data"
+restic -r "$RESTIC_REPO" backup "$SRC" --one-file-system --exclude-caches --verbose
+# Keep: 7 daily, 4 weekly, 6 monthly
+restic -r "$RESTIC_REPO" forget --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
+SH
+sudo chmod +x /usr/local/bin/backup-restic.sh
+```
+
+## Schedule (systemd)
+
+```bash
+sudo tee /etc/systemd/system/backup-restic.service >/dev/null <<'UNIT'
+[Unit]
+Description=Restic backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup-restic.sh
+UNIT
+
+sudo tee /etc/systemd/system/backup-restic.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Run Restic backup daily
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+Unit=backup-restic.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+sudo systemctl enable --now backup-restic.timer
+```
+
+## Restore
+
+```bash
+export RESTIC_PASSWORD="change-this"
+restic -r rclone:b2:mybucket/restic-repo snapshots
+restic -r rclone:b2:mybucket/restic-repo restore latest --target /restore
+```
+
+## Notes
+
+- Keep `RESTIC_PASSWORD` secret (use `EnvironmentFile` in systemd for production).
+- Test restores regularly.

@@ -12,36 +12,38 @@ export function findRelatedGuides(currentGuide: GuideMetadata, allGuides: GuideM
     .filter(guide => guide.slug !== currentGuide.slug)
     .map(guide => {
       let score = 0;
-      
+
       // Same category gets highest score
-      if (guide.category === currentGuide.category) {
+      if (guide.category && currentGuide.category && guide.category === currentGuide.category) {
         score += 10;
       }
-      
+
       // Same difficulty gets moderate score
-      if (guide.difficulty === currentGuide.difficulty) {
+      if (guide.difficulty && currentGuide.difficulty && guide.difficulty === currentGuide.difficulty) {
         score += 5;
       }
-      
+
       // UK specific matching
-      if (guide.ukSpecific === currentGuide.ukSpecific) {
+      const guideUk = typeof guide.ukSpecific === 'boolean' ? guide.ukSpecific : false;
+      const currentUk = typeof currentGuide.ukSpecific === 'boolean' ? currentGuide.ukSpecific : false;
+      if (guideUk === currentUk) {
         score += 3;
       }
-      
-      // Tag matching
-      const commonTags = guide.tags.filter(tag => 
-        currentGuide.tags.some(currentTag => 
-          currentTag.toLowerCase() === tag.toLowerCase()
-        )
+
+      // Tag matching (defensive)
+      const guideTags = Array.isArray(guide.tags) ? guide.tags : [];
+      const currentTags = Array.isArray(currentGuide.tags) ? currentGuide.tags : [];
+      const commonTags = guideTags.filter(tag =>
+        currentTags.some(currentTag => (currentTag || '').toLowerCase() === (tag || '').toLowerCase())
       );
       score += commonTags.length * 2;
-      
+
       return { guide, score };
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map(item => item.guide);
-    
+
   return related;
 }
 
@@ -55,6 +57,6 @@ export function getGuideStats(guides: GuideMetadata[]) {
       Advanced: guides.filter(g => g.difficulty === 'Advanced').length,
     },
     ukSpecific: guides.filter(g => g.ukSpecific).length,
-    totalTags: [...new Set(guides.flatMap(g => g.tags))].length,
+    totalTags: [...new Set(guides.flatMap(g => Array.isArray(g.tags) ? g.tags : []))].length,
   };
 }

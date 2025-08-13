@@ -108,36 +108,36 @@ export default function AdminGuidesPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-white">Manage Guides</h1>
-            <p className="text-[var(--ds-text-muted)] mt-1">Create, edit, and manage all platform guides</p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white">Manage Guides</h1>
+            <p className="text-[var(--ds-text-muted)] mt-1 text-sm">Create, edit, and manage all platform guides</p>
           </div>
-          <Button>
+          <Button size="sm" className="h-9 px-3">
             <Link href="/admin/guides/new">Create New Guide</Link>
           </Button>
         </div>
 
         {/* Filters */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4">
+          <CardContent className="p-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <input
                   type="text"
                   placeholder="Search guides..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="input w-full h-10"
+                  className="input w-full h-9 text-sm"
                 />
               </div>
               <div>
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="input h-10"
+                  className="input h-9 text-sm"
                 >
                   {categories.map(category => (
                     <option key={category} value={category}>
@@ -151,16 +151,11 @@ export default function AdminGuidesPage() {
         </Card>
 
         {/* Guides List */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredGuides.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
-                <div className="text-[var(--ds-text-muted)]">
-                  {searchQuery || selectedCategory !== 'All Categories' 
-                    ? 'No guides found matching your filters.'
-                    : 'No guides created yet.'
-                  }
-                </div>
+                <div className="text-[var(--ds-text-muted)]">{searchQuery || selectedCategory !== 'All Categories' ? 'No guides found matching your filters.' : 'No guides created yet.'}</div>
                 {(!searchQuery && selectedCategory === 'All Categories') && (
                   <Button className="mt-4">
                     <Link href="/admin/guides/new">Create Your First Guide</Link>
@@ -171,24 +166,24 @@ export default function AdminGuidesPage() {
           ) : (
             filteredGuides.map((guide) => (
               <Card key={guide.slug} className="hover:border-[var(--ds-border-strong)] transition-colors">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-white">{guide.title}</h3>
-                        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${difficultyColors[guide.difficulty]}`}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <h3 className="text-base md:text-lg font-bold text-white leading-snug">{guide.title}</h3>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${difficultyColors[guide.difficulty]}`}>
                           {guide.difficulty}
                         </span>
                         {guide.ukSpecific && (
-                          <span className="text-xs px-2 py-1 rounded-full border border-[var(--ds-border-subtle)] bg-[var(--ds-background-secondary)]">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--ds-border-subtle)] bg-[var(--ds-background-secondary)]">
                             🇬🇧 UK
                           </span>
                         )}
                       </div>
                       
-                      <p className="text-[var(--ds-text-muted)] mb-3">{guide.description}</p>
+                      <p className="text-[var(--ds-text-muted)] text-sm mb-2">{guide.description}</p>
                       
-                      <div className="flex items-center gap-4 text-sm text-[var(--ds-text-muted)] mb-3">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--ds-text-muted)] mb-2">
                         <span className="flex items-center">
                           <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -209,36 +204,37 @@ export default function AdminGuidesPage() {
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {guide.tags.slice(0, 3).map(tag => (
                           <span
                             key={tag}
-                            className="inline-block px-2 py-1 rounded bg-[var(--ds-background-tertiary)] text-[var(--ds-text-muted)] text-xs border border-[var(--ds-border-subtle)]"
+                            className="inline-block px-1.5 py-0.5 rounded bg-[var(--ds-background-tertiary)] text-[var(--ds-text-muted)] text-[10px] border border-[var(--ds-border-subtle)]"
                           >
                             #{tag}
                           </span>
                         ))}
                         {guide.tags.length > 3 && (
-                          <span className="text-xs text-[var(--ds-text-muted)]">
+                          <span className="text-[10px] text-[var(--ds-text-muted)]">
                             +{guide.tags.length - 3} more
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 ml-4">
-                      <Button variant="outline" size="sm">
+                    <div className="flex items-center gap-1.5 ml-2">
+                      <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
                         <Link href={`/guides/${guide.slug}`} target="_blank">View Live</Link>
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
                         <Link href={`/admin/guides/preview?slug=${encodeURIComponent(guide.slug)}`}>Preview</Link>
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
                         <Link href={`/admin/guides/edit?slug=${encodeURIComponent(guide.slug)}`}>Edit</Link>
                       </Button>
                       <Button
                         variant="destructive"
                         size="sm"
+                        className="h-8 px-2 text-xs"
                         onClick={() => handleDeleteGuide(guide.slug)}
                         loading={deleteLoading === guide.slug}
                       >
@@ -254,10 +250,8 @@ export default function AdminGuidesPage() {
 
         {/* Stats */}
         <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-[var(--ds-text-muted)]">
-              Showing {filteredGuides.length} of {guides.length} total guides
-            </div>
+          <CardContent className="p-3">
+            <div className="text-xs text-[var(--ds-text-muted)]">Showing {filteredGuides.length} of {guides.length} total guides</div>
           </CardContent>
         </Card>
       </div>

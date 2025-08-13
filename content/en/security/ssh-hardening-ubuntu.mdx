@@ -1,0 +1,97 @@
+---
+title: "SSH Hardening + Fail2ban on Ubuntu"
+description: "Harden SSH access with key-based auth, disable passwords, and add Fail2ban protection."
+category: "Security"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["ssh","hardening","fail2ban","security","ubuntu"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+prerequisites:
+  - "Existing sudo user"
+---
+
+# SSH Hardening + Fail2ban on Ubuntu
+
+Secure SSH by using keys only and banning brute-force attempts.
+
+## 1) Create an SSH key (on your client)
+
+```bash
+ssh-keygen -t ed25519 -C "you@host"
+ssh-copy-id -i ~/.ssh/id_ed25519.pub user@server
+```
+
+If `ssh-copy-id` isn’t available, paste the public key into `~/.ssh/authorized_keys` on the server.
+
+## 2) Disable password auth (server)
+
+```bash
+sudo nano /etc/ssh/sshd_config
+```
+
+Set:
+
+```
+PasswordAuthentication no
+PermitRootLogin no
+PubkeyAuthentication yes
+ChallengeResponseAuthentication no
+```
+
+Apply:
+
+```bash
+sudo systemctl restart ssh
+```
+
+Test a new session before closing your current one to avoid lockout.
+
+## 3) Install and configure Fail2ban
+
+```bash
+sudo apt update
+sudo apt install -y fail2ban
+```
+
+Create a local jail override:
+
+```bash
+sudo tee /etc/fail2ban/jail.local >/dev/null <<'CONF'
+[sshd]
+enabled = true
+port    = ssh
+filter  = sshd
+logpath = /var/log/auth.log
+maxretry = 5
+bantime  = 1h
+findtime = 10m
+ignoreip = 127.0.0.1/8 192.168.0.0/16
+CONF
+
+sudo systemctl enable --now fail2ban
+sudo fail2ban-client status sshd
+```
+
+## Optional: Change SSH port
+
+```bash
+# In /etc/ssh/sshd_config
+Port 2222
+
+sudo systemctl restart ssh
+sudo ufw allow 2222/tcp
+```
+
+## Monitoring
+
+```bash
+sudo journalctl -u ssh -e
+sudo fail2ban-client status
+sudo fail2ban-client status sshd
+```
+
+You now have a key-only SSH with basic brute-force protection.

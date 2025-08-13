@@ -1,0 +1,30 @@
+---
+title: "Vaultwarden (Bitwarden) with Docker"
+description: "Lightweight Bitwarden-compatible server for passwords and secrets."
+category: "Home Servers"
+difficulty: "Beginner"
+time: "15 minutes"
+ukSpecific: false
+status: "published"
+tags: ["vaultwarden","bitwarden","passwords","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Vaultwarden (Bitwarden) with Docker
+
+```yaml
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    environment:
+      - ADMIN_TOKEN=change-me
+    volumes:
+      - ./data:/data
+    ports:
+      - "8085:80"
+    restart: unless-stopped
+```
+
+Reverse proxy with HTTPS strongly recommended.

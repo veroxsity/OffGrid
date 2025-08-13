@@ -1,0 +1,31 @@
+---
+title: "Proxmox VE Install (USB Boot)"
+description: "Create a USB installer and set up Proxmox VE on bare metal."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "30 minutes"
+ukSpecific: false
+status: "published"
+tags: ["proxmox","virtualization","kvm","usb-install"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Proxmox VE Install (USB Boot)
+
+## Create installer
+
+- Download ISO from proxmox.com.
+- Use Rufus (Windows) or `dd` (Linux/macOS) to write to USB.
+
+## BIOS/UEFI
+
+- Enable virtualization (VT-x/AMD-V) and IOMMU if needed.
+
+## Install steps
+
+- Boot from USB → Graphical install.
+- Set ZFS (mirror) if using multiple disks.
+- Create strong root password and note IP.
+
+Visit `https://SERVER_IP:8006` to finish setup.

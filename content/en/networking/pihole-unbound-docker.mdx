@@ -1,0 +1,106 @@
+---
+title: "Pi-hole + Unbound (Recursive DNS) with Docker"
+description: "Run Pi-hole with a local validating, recursive resolver (Unbound) using Docker Compose."
+category: "Networking"
+difficulty: "Intermediate"
+time: "35 minutes"
+ukSpecific: false
+status: "published"
+tags: ["pihole","unbound","dns","docker","ad-blocking"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04", "Debian 12"]
+prerequisites:
+  - "Docker + Compose installed"
+  - "Ports 53 and 80 available"
+---
+
+# Pi-hole + Unbound (Recursive DNS) with Docker
+
+Local, private DNS with built-in ad/tracker blocking and no third-party resolvers.
+
+## 1) Create project
+
+```bash
+mkdir -p ~/pihole-unbound && cd ~/pihole-unbound
+mkdir etc-dnsmasq.d etc-pihole
+```
+
+## 2) docker-compose.yaml
+
+```yaml
+services:
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    hostname: pihole
+    environment:
+      TZ: "Europe/London"
+      WEBPASSWORD: "change-me"
+      FTLCONF_reply_addr4: "0.0.0.0"
+    volumes:
+      - ./etc-pihole:/etc/pihole
+      - ./etc-dnsmasq.d:/etc/dnsmasq.d
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "80:80/tcp"
+    depends_on:
+      - unbound
+    restart: unless-stopped
+
+  unbound:
+    image: mvance/unbound:latest
+    container_name: unbound
+    hostname: unbound
+    restart: unless-stopped
+```
+
+Bring it up:
+
+```bash
+docker compose up -d
+```
+
+## 3) Point Pi-hole to Unbound
+
+- Visit the admin UI: `http://SERVER_IP/admin` (password from `WEBPASSWORD`).
+- Settings → DNS → Upstream DNS Servers → Custom 1 (IPv4): `127.0.0.1#5335` (the mvance image listens on 5335).
+- Disable all public upstreams.
+
+## 4) Optional: Hardcode conditional forwarding (LAN hostnames)
+
+Settings → DNS → Conditional Forwarding:
+- Local network: e.g., `192.168.1.0/24`
+- Gateway: your router IP, e.g., `192.168.1.1`
+- Local domain: e.g., `lan`
+
+## 5) Make Pi-hole your network DNS
+
+- Preferred: set router DHCP DNS to your server’s IP (clients inherit automatically).
+- Per-device: set DNS to your server’s IP.
+
+## 6) Verify
+
+```bash
+dig @SERVER_IP offgrid.freedom +short
+# Should resolve quickly
+
+dig @SERVER_IP google.com +short
+```
+
+Pi-hole Query Log should show hits; Unbound handles recursion.
+
+## Security notes
+
+- Don’t expose port 53 to the internet; keep it LAN-only.
+- Keep Pi-hole password strong.
+- Restrict admin UI to LAN by firewall if needed.
+
+## Maintenance
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Update adlists in Pi-hole UI as desired.

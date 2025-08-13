@@ -1,0 +1,33 @@
+---
+title: "Sonarr with Docker"
+description: "Automate TV downloads with indexers and qBittorrent."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["sonarr","media","automation","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Sonarr with Docker
+
+```yaml
+services:
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    ports:
+      - 8989:8989
+    volumes:
+      - ./config:/config
+      - /srv/media/series:/tv
+      - /srv/downloads:/downloads
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:8989` and add indexers and your download client.

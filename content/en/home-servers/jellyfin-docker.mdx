@@ -1,0 +1,76 @@
+---
+title: "Jellyfin Media Server with Docker"
+description: "Self-hosted media server with hardware acceleration tips and reverse proxy notes."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "25 minutes"
+ukSpecific: false
+status: "published"
+tags: ["jellyfin","media-server","docker","hardware-acceleration","transcoding"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+prerequisites:
+  - "Docker + Compose installed"
+  - "Media library folder(s)"
+---
+
+# Jellyfin Media Server with Docker
+
+Free, open-source media server. Stream locally or via reverse proxy.
+
+## 1) Compose file
+
+```yaml
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    user: "1000:1000"   # match your user:group ids
+    volumes:
+      - ./config:/config
+      - ./cache:/cache
+      - /srv/media:/media:ro
+    ports:
+      - "8096:8096"    # HTTP
+      # - "8920:8920"  # HTTPS (optional)
+    environment:
+      - TZ=Europe/London
+    restart: unless-stopped
+```
+
+Start:
+
+```bash
+mkdir -p ~/jellyfin && cd ~/jellyfin
+docker compose up -d
+```
+
+Visit `http://SERVER_IP:8096` to complete setup.
+
+## 2) Hardware acceleration
+
+- Intel iGPU: add device `/dev/dri`:
+
+```yaml
+    devices:
+      - "/dev/dri:/dev/dri"
+```
+
+- NVIDIA: install host drivers + `--gpus all` (compose: `deploy.resources.reservations.devices`).
+- Enable hardware accel in Dashboard → Playback.
+
+## 3) Reverse proxy tips
+
+- With Nginx Proxy Manager, forward to `http://jellyfin:8096` and enable WebSockets.
+- Set Jellyfin public base URL if using a subpath.
+
+## 4) Backups
+
+- Backup `./config` regularly.
+- Library paths are read-only; keep media outside the container.
+
+## Troubleshooting
+
+- No transcoding: verify `/dev/dri` permissions or NVENC availability.
+- Remote buffering: use H264 for max compatibility; consider bitrate limits.

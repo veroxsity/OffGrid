@@ -1,0 +1,29 @@
+---
+title: "Gitea (Git hosting) with Docker"
+description: "Lightweight self-hosted Git platform."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["gitea","git","ci","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Gitea (Git hosting) with Docker
+
+```yaml
+services:
+  gitea:
+    image: gitea/gitea:latest
+    user: "1000:1000"
+    ports:
+      - "3000:3000"
+      - "222:22"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+```
+
+Visit `http://SERVER_IP:3000` to initialize.

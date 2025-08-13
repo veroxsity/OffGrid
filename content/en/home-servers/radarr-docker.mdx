@@ -1,0 +1,33 @@
+---
+title: "Radarr with Docker"
+description: "Automate movie downloads with indexers and qBittorrent."
+category: "Home Servers"
+difficulty: "Intermediate"
+time: "20 minutes"
+ukSpecific: false
+status: "published"
+tags: ["radarr","media","automation","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Radarr with Docker
+
+```yaml
+services:
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    ports:
+      - 7878:7878
+    volumes:
+      - ./config:/config
+      - /srv/media/movies:/movies
+      - /srv/downloads:/downloads
+    restart: unless-stopped
+```
+
+Open `http://SERVER_IP:7878`.

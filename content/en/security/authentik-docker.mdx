@@ -1,0 +1,67 @@
+---
+title: "authentik (SSO) with Docker"
+description: "Run authentik for OAuth/OIDC SSO; protect apps via reverse proxy."
+category: "Security"
+difficulty: "Advanced"
+time: "45 minutes"
+ukSpecific: false
+status: "published"
+tags: ["authentik","sso","oidc","oauth","docker"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# authentik (SSO) with Docker
+
+Self-hosted SSO provider compatible with OIDC/OAuth2.
+
+## Compose (PostgreSQL + Redis)
+
+```yaml
+services:
+  postgresql:
+    image: docker.io/library/postgres:16
+    environment:
+      POSTGRES_PASSWORD: change-me
+      POSTGRES_USER: authentik
+      POSTGRES_DB: authentik
+    volumes:
+      - ./pg:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    restart: unless-stopped
+
+  server:
+    image: ghcr.io/goauthentik/server:latest
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: change-me
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_SECRET_KEY: change-me-long-random
+    volumes:
+      - ./media:/media
+      - ./custom-templates:/templates
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    depends_on:
+      - postgresql
+      - redis
+    restart: unless-stopped
+```
+
+Open `https://SERVER_IP:9443` to finish setup.
+
+## Protecting an app via OIDC
+
+- Create an Application + Provider (OIDC) in authentik.
+- In your reverse proxy, require auth via OIDC (e.g., with forward auth middlewares or native integrations).
+
+## Tips
+
+- Put server behind NPM/Traefik with a public hostname.
+- Back up Postgres volume and `./media`.

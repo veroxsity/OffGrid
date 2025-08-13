@@ -1,0 +1,49 @@
+---
+title: "Fail2ban for Nginx Proxy Manager Logs (Docker Host)"
+description: "Ban abusive IPs by parsing NPM access logs with Fail2ban on the host."
+category: "Security"
+difficulty: "Intermediate"
+time: "25 minutes"
+ukSpecific: false
+status: "published"
+tags: ["fail2ban","nginx-proxy-manager","security","ban"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# Fail2ban for Nginx Proxy Manager Logs (Docker Host)
+
+## Install
+
+```bash
+sudo apt install -y fail2ban
+```
+
+## Jail and filter
+
+`/etc/fail2ban/jail.d/npm.local`:
+
+```ini
+[npm-abuse]
+enabled = true
+port    = http,https
+filter  = npm-abuse
+logpath = /srv/npm/logs/*access*.log
+maxretry = 10
+bantime = 1h
+findtime = 10m
+```
+
+`/etc/fail2ban/filter.d/npm-abuse.conf`:
+
+```ini
+[Definition]
+failregex = <HOST> - .* "(GET|POST) /.*" 403
+```
+
+Reload:
+
+```bash
+sudo systemctl restart fail2ban
+sudo fail2ban-client status npm-abuse
+```

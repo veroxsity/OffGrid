@@ -1,0 +1,65 @@
+---
+title: "Tailscale on Ubuntu (Mesh VPN + Exit Node)"
+description: "Zero-config mesh VPN for your devices. Optional exit node and subnet routes."
+category: "VPN & Tunnels"
+difficulty: "Beginner"
+time: "10 minutes"
+ukSpecific: false
+status: "published"
+tags: ["tailscale","vpn","mesh","ubuntu","exit-node"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
+prerequisites:
+  - "Tailscale account (free tier is fine)"
+  - "Ubuntu server with internet access"
+---
+
+# Tailscale on Ubuntu (Mesh VPN + Exit Node)
+
+Instantly connect devices without opening ports.
+
+## Install
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+Follow the link to authenticate.
+
+## Make this machine an exit node (optional)
+
+```bash
+sudo tailscale up --advertise-exit-node
+```
+
+Approve in the Tailscale admin console (Machines → this node → Enable exit node).
+
+## Advertise a subnet (site-to-site)
+
+```bash
+# Example: advertise your LAN 192.168.1.0/24
+sudo tailscale up --advertise-routes=192.168.1.0/24
+```
+
+Approve the route in the admin console. Clients can then enable it from their UI.
+
+## Useful commands
+
+```bash
+# Status and peers
+sudo tailscale status
+
+# Force key refresh
+sudo tailscale cert --renew
+
+# Start at boot
+sudo systemctl enable --now tailscaled
+```
+
+## Notes
+
+- No router port forwarding required.
+- Use ACLs to restrict who can access what.
+- For DNS, enable MagicDNS in the admin console.

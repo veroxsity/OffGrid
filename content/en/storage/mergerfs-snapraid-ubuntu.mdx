@@ -1,0 +1,48 @@
+---
+title: "mergerfs + SnapRAID on Ubuntu"
+description: "JBOD pooling with parity protection using mergerfs and SnapRAID."
+category: "Storage"
+difficulty: "Advanced"
+time: "60 minutes"
+ukSpecific: false
+status: "published"
+tags: ["mergerfs","snapraid","storage","parity","ubuntu"]
+author: "Off-Grid Freedom"
+lastUpdated: "2025-08-13"
+---
+
+# mergerfs + SnapRAID on Ubuntu
+
+Pool different-size disks and add parity.
+
+## Install
+
+```bash
+sudo apt install -y mergerfs snapraid
+```
+
+## Configure SnapRAID
+
+Edit `/etc/snapraid.conf` with your data and parity disks.
+
+```conf
+parity /mnt/parity/parity1
+content /mnt/disk1/snapraid.content
+content /mnt/disk2/snapraid.content
+
+data d1 /mnt/disk1
+data d2 /mnt/disk2
+
+exclude *.tmp
+```
+
+## Create mergerfs mount
+
+```bash
+sudo mkdir -p /mnt/{disk1,disk2,storage}
+# Mount disks (via fstab in real setups)
+# Then:
+sudo mergerfs -o defaults,allow_other,use_ino,category.create=epmfs /mnt/disk* /mnt/storage
+```
+
+Schedule `snapraid sync` and `scrub` via cron/systemd.
