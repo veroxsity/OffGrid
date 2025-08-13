@@ -1,0 +1,15 @@
+# Method 1: Using curl (replace YOUR_EMAIL with your actual email)
+curl -X POST http://localhost:3000/api/admin/setup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "YOUR_EMAIL@example.com",
+    "adminKey": "setup-admin-2024"
+  }'
+
+# Method 2: Using PowerShell (Windows)
+$body = @{
+    email = "YOUR_EMAIL@example.com"
+    adminKey = "setup-admin-2024"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:3000/api/admin/setup" -Method POST -Body $body -ContentType "application/json"

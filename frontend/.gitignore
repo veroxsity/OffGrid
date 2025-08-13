@@ -1,6 +1,16 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# Security & secrets
+.env*
+!.env.example
+*.key
+*.pem
+*.crt
+*.pfx
+*.p12
+*.der
+
+# Dependencies
 /node_modules
 /.pnp
 .pnp.*
@@ -10,32 +20,35 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Package manager debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Build outputs
+/.next/
+/out/
+/build
+/dist
 
-# vercel
-.vercel
+# Prisma generated (regenerate via prisma generate)
+/prisma/dev.db
+/prisma/*.db
+/node_modules/.prisma
 
-# typescript
+# Testing
+/coverage
+
+# Misc
+.DS_Store
 *.tsbuildinfo
 next-env.d.ts
+.vercel
+
+# Temporary / cache
+.cache/
+.tmp/
+
+# Draft MDX pattern
+**/draft-*.mdx

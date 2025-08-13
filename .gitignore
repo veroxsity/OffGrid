@@ -1,29 +1,46 @@
-# Dependencies
+# --- SECURITY / SECRETS ---
+.env*
+!.env.example
+# Explicitly ignore any secret / key material
+*.key
+*.pem
+*.crt
+*.pfx
+*.p12
+*.der
+
+# --- DEPENDENCIES ---
 node_modules/
+
+# Package manager debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# Next.js
+# --- BUILD OUTPUT ---
 .next/
 out/
 build/
+dist/
 
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# --- DATABASE / PRISMA ---
+*.db
+*.sqlite
+*.sqlite-journal
+/prisma/migrations/dev
+/frontend/prisma/dev.db
+/frontend/prisma/*.db
 
-# IDEs and editors
+# Generated client (can be regenerated)
+frontend/node_modules/.prisma
+
+# --- OS / EDITOR ---
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -32,23 +49,35 @@ build/
 ehthumbs.db
 Thumbs.db
 
-# Logs
-logs
+# --- LOGS ---
+logs/
 *.log
 
-# Database
-*.db
-*.sqlite
-
-# Docker
+# --- DOCKER ---
 docker-compose.override.yml
 
-# Testing
+# --- TEST / COVERAGE ---
 coverage/
 .nyc_output/
 
-# Misc
+# --- CACHES / TEMP ---
 .cache/
-dist/
 tmp/
 temp/
+
+# --- LOCKFILES FROM ALT MANAGERS (if using single manager policy) ---
+# Uncomment if you standardize on one manager
+# yarn.lock
+# pnpm-lock.yaml
+
+# --- MISC ---
+.vercel
+
+# Prevent accidental commits of backup or exported content archives
+*.tar
+*.tar.gz
+*.zip
+*.7z
+
+# Prevent committing local content drafts outside content/ tree
+**/draft-*.mdx

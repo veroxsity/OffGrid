@@ -17,11 +17,18 @@ export interface GuideMetadata {
   testedOn?: string[];
   tags: string[];
   slug: string;
+  status?: 'draft' | 'published';
 }
 
 export interface Guide {
   metadata: GuideMetadata;
   content: React.ReactElement;
+  slug: string;
+}
+
+export interface RawGuide {
+  metadata: GuideMetadata;
+  content: string; // Raw MDX content
   slug: string;
 }
 
@@ -58,16 +65,13 @@ export function getAllGuideSlugs(): string[] {
 }
 
 // Get guide content by slug
-export async function getGuideBySlug(slug: string): Promise<Guide | null> {
+export async function getGuideBySlug(slug: string, opts: { includeDrafts?: boolean } = {}): Promise<Guide | null> {
   try {
     const filePath = path.join(contentDirectory, 'en', `${slug}.mdx`);
-    
-    if (!fs.existsSync(filePath)) {
-      return null;
-    }
-
+    if (!fs.existsSync(filePath)) return null;
     const fileContent = fs.readFileSync(filePath, 'utf8');
     const { data: frontmatter, content } = matter(fileContent);
+    if (frontmatter.status === 'draft' && !opts.includeDrafts) return null;
 
     const { content: mdxContent } = await compileMDX({
       source: content,
@@ -97,7 +101,7 @@ export async function getGuideBySlug(slug: string): Promise<Guide | null> {
 }
 
 // Get all guides with metadata (for listings)
-export async function getAllGuides(): Promise<GuideMetadata[]> {
+export async function getAllGuides(opts: { includeDrafts?: boolean } = {}): Promise<GuideMetadata[]> {
   const slugs = getAllGuideSlugs();
   const guides: GuideMetadata[] = [];
 
@@ -106,35 +110,70 @@ export async function getAllGuides(): Promise<GuideMetadata[]> {
       const filePath = path.join(contentDirectory, 'en', `${slug}.mdx`);
       const fileContent = fs.readFileSync(filePath, 'utf8');
       const { data: frontmatter } = matter(fileContent);
-
-      guides.push({
-        ...frontmatter as Omit<GuideMetadata, 'slug'>,
-        slug,
-      });
+      if (frontmatter.status === 'draft' && !opts.includeDrafts) continue;
+      guides.push({ ...(frontmatter as Omit<GuideMetadata,'slug'>), slug });
     } catch (error) {
       console.error(`Error loading metadata for ${slug}:`, error);
     }
   }
-
   return guides;
 }
 
 // Get guides by category
-export async function getGuidesByCategory(category: string): Promise<GuideMetadata[]> {
-  const allGuides = await getAllGuides();
-  return allGuides.filter(guide => 
-    guide.category.toLowerCase().replace(/\s+/g, '-') === category.toLowerCase()
-  );
+export async function getGuidesByCategory(category: string, opts: { includeDrafts?: boolean } = {}) {
+  const allGuides = await getAllGuides(opts);
+  return allGuides.filter(g => g.category.toLowerCase().replace(/\s+/g,'-') === category.toLowerCase());
 }
 
 // Search guides by title, description, or tags
-export async function searchGuides(query: string): Promise<GuideMetadata[]> {
-  const allGuides = await getAllGuides();
-  const searchTerm = query.toLowerCase();
+export async function searchGuides(query: string, opts: { includeDrafts?: boolean } = {}) {
+  const allGuides = await getAllGuides(opts);
+  const term = query.toLowerCase();
+  return allGuides.filter(guide => guide.title.toLowerCase().includes(term) || guide.description.toLowerCase().includes(term) || guide.tags.some(t => t.toLowerCase().includes(term)));
+}
 
-  return allGuides.filter(guide => 
-    guide.title.toLowerCase().includes(searchTerm) ||
-    guide.description.toLowerCase().includes(searchTerm) ||
-    guide.tags.some(tag => tag.toLowerCase().includes(searchTerm))
-  );
+// Get raw guide content for editing
+export async function getRawGuideBySlug(slug: string, opts: { includeDrafts?: boolean } = {}): Promise<RawGuide | null> {
+  try {
+    const filePath = path.join(contentDirectory, 'en', `${slug}.mdx`);
+    if (!fs.existsSync(filePath)) return null;
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    const { data: frontmatter, content } = matter(fileContent);
+    if (frontmatter.status === 'draft' && !opts.includeDrafts) return null;
+
+    const metadata: GuideMetadata = {
+      ...frontmatter as Omit<GuideMetadata, 'slug'>,
+      slug,
+    };
+
+    return {
+      metadata,
+      content, // Raw MDX content without frontmatter
+      slug,
+    };
+  } catch (error) {
+    console.error(`Error loading raw guide ${slug}:`, error);
+    return null;
+  }
+}
+
+// Process markdown content for preview
+export async function processMarkdown(content: string): Promise<React.ReactElement> {
+  try {
+    const { content: mdxContent } = await compileMDX({
+      source: content,
+      options: {
+        parseFrontmatter: false,
+        mdxOptions: {
+          remarkPlugins: [remarkGfm],
+          rehypePlugins: [rehypeHighlight, rehypeSlug],
+        },
+      },
+    });
+
+    return mdxContent;
+  } catch (error) {
+    console.error('Error processing markdown:', error);
+    throw error;
+  }
 }

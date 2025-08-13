@@ -2,6 +2,10 @@
 
 import Link from 'next/link';
 import { GuideMetadata } from '@/lib/mdx';
+import BookmarkButton from '@/components/BookmarkButton';
+import RelatedGuides from './RelatedGuides';
+import { TableOfContents } from '@/components/ui/table-of-contents';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 interface GuideLayoutProps {
   metadata: GuideMetadata;
@@ -9,173 +13,138 @@ interface GuideLayoutProps {
 }
 
 export default function GuideLayout({ metadata, children }: GuideLayoutProps) {
-  const difficultyColors = {
-    Beginner: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    Intermediate: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-    Advanced: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  const difficultyClasses: Record<string, string> = {
+    Beginner: 'bg-green-500/10 text-green-300 border border-green-400/20',
+    Intermediate: 'bg-yellow-500/10 text-yellow-300 border border-yellow-400/20',
+    Advanced: 'bg-red-500/10 text-red-300 border border-red-400/20',
   };
 
   return (
-    <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Breadcrumb */}
-      <nav className="mb-8">
-        <ol className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-          <li>
-            <Link href="/" className="hover:text-red-600 dark:hover:text-red-400">
-              Home
-            </Link>
-          </li>
-          <li>
-            <span>/</span>
-          </li>
-          <li>
-            <Link 
-              href="/guides" 
-              className="hover:text-red-600 dark:hover:text-red-400"
-            >
-              Guides
-            </Link>
-          </li>
-          <li>
-            <span>/</span>
-          </li>
-          <li>
-            <Link 
-              href={`/guides/${metadata.category.toLowerCase().replace(/\s+/g, '-')}`}
-              className="hover:text-red-600 dark:hover:text-red-400"
-            >
-              {metadata.category}
-            </Link>
-          </li>
-          <li>
-            <span>/</span>
-          </li>
-          <li className="text-gray-900 dark:text-gray-100">
-            {metadata.title}
-          </li>
-        </ol>
-      </nav>
+    <div className="min-h-screen bg-[var(--ds-background-primary)] text-[var(--ds-text-normal)]">
+      <article className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Breadcrumb */}
+        <nav className="mb-6 md:mb-10 text-xs font-medium tracking-wide">
+          <ol className="flex flex-wrap items-center gap-2 text-[var(--ds-text-muted)]">
+            <li><Link href="/" className="hover:text-[var(--ds-background-accent)] transition-colors">Home</Link></li>
+            <li className="opacity-40">/</li>
+            <li><Link href="/guides" className="hover:text-[var(--ds-background-accent)] transition-colors">Guides</Link></li>
+            <li className="opacity-40">/</li>
+            <li><Link href={`/guides/${metadata.category.toLowerCase().replace(/\s+/g, '-')}`} className="hover:text-[var(--ds-background-accent)] transition-colors">{metadata.category}</Link></li>
+            <li className="opacity-40">/</li>
+            <li className="text-white font-semibold">{metadata.title}</li>
+          </ol>
+        </nav>
 
-      {/* Guide Header */}
-      <header className="mb-8 pb-8 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <span className="text-sm font-medium text-red-600 dark:text-red-400">
-            {metadata.category}
-          </span>
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${difficultyColors[metadata.difficulty]}`}>
-            {metadata.difficulty}
-          </span>
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            ⏱️ {metadata.time}
-          </span>
-          {metadata.ukSpecific && (
-            <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-              🇬🇧 UK Specific
-            </span>
-          )}
-        </div>
-
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-          {metadata.title}
-        </h1>
-
-        <p className="text-xl text-gray-600 dark:text-gray-300 mb-6">
-          {metadata.description}
-        </p>
-
-        {/* Guide Meta */}
-        <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-          <div>
-            <span className="font-medium">Last Updated:</span> {metadata.lastUpdated}
-          </div>
-          {metadata.testedOn && metadata.testedOn.length > 0 && (
-            <div>
-              <span className="font-medium">Tested On:</span> {metadata.testedOn.join(', ')}
+        {/* Hero Card */}
+        <Card className="mb-10 overflow-hidden">
+          <CardHeader className="relative bg-[var(--ds-background-accent)] text-white p-8 md:p-10">
+            <div className="absolute inset-0 pointer-events-none [mask-image:radial-gradient(circle_at_40%_40%,white,transparent_75%)]" />
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-5 relative z-10">
+              <span className="text-[11px] uppercase tracking-wider font-semibold bg-white/10 backdrop-blur-sm px-3 py-1 rounded-full border border-white/20 shadow-sm">
+                {metadata.category}
+              </span>
+              <span className={`text-[11px] font-semibold tracking-wide px-3 py-1 rounded-full backdrop-blur-sm shadow-sm ${difficultyClasses[metadata.difficulty] || 'bg-white/10 text-white border border-white/20'}`}>{metadata.difficulty}</span>
+              {metadata.time && (
+                <span className="flex items-center text-xs font-medium bg-white/10 px-3 py-1 rounded-full border border-white/20">
+                  <svg className="w-4 h-4 mr-1 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  {metadata.time}
+                </span>
+              )}
+              {metadata.ukSpecific && (
+                <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-blue-500/20 text-white border border-blue-400/40 shadow-sm">🇬🇧 UK</span>
+              )}
             </div>
-          )}
-        </div>
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-8 relative z-10">
+              <div className="flex-1">
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4 drop-shadow-sm">
+                  {metadata.title}
+                </h1>
+                <p className="text-base sm:text-lg lg:text-xl text-white/90 max-w-3xl leading-relaxed">
+                  {metadata.description}
+                </p>
+              </div>
+              <div className="flex-shrink-0">
+                <BookmarkButton guideSlug={metadata.slug} title={metadata.title} description={metadata.description} />
+              </div>
+            </div>
+          </CardHeader>
 
-        {/* Tags */}
-        <div className="mt-4">
-          <div className="flex flex-wrap gap-2">
-            {metadata.tags.map((tag) => (
-              <Link
-                key={tag}
-                href={`/guides/search?q=${encodeURIComponent(tag)}`}
-                className="inline-block bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded transition-colors"
-              >
-                #{tag}
+          <CardContent className="p-6 md:p-8">
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-4 text-xs sm:text-sm text-[var(--ds-text-muted)] font-medium">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                <span className="uppercase tracking-wider text-[11px]">Updated</span>
+                <span className="text-white/90 font-semibold">{metadata.lastUpdated}</span>
+              </div>
+              {Array.isArray(metadata.testedOn) && metadata.testedOn.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="uppercase tracking-wider text-[11px]">Tested On</span>
+                  <span className="text-white/80">{metadata.testedOn.join(', ')}</span>
+                </div>
+              )}
+            </div>
+            {/* Tags */}
+            <div className="mt-6 flex flex-wrap gap-2">
+              {metadata.tags.map(tag => (
+                <Link key={tag} href={`/guides/search?q=${encodeURIComponent(tag)}`} className="group inline-flex items-center gap-1 pl-2 pr-3 py-1 rounded-full text-[11px] font-medium tracking-wide border border-[var(--ds-border-subtle)] bg-[var(--ds-background-secondary)] text-[var(--ds-text-muted)] hover:border-[var(--ds-border-strong)]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--ds-background-accent)]" /> #{tag}
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-3 order-last lg:order-first">
+            <TableOfContents className="lg:mt-2" stickyOffset={140} />
+          </div>
+          <div className="lg:col-span-9">
+            <div className="prose prose-lg dark:prose-invert max-w-none relative">
+              {/* gradient top fade for large code blocks */}
+              <div className="pointer-events-none absolute -top-4 left-0 right-0 h-6 bg-gradient-to-b from-[var(--ds-background-primary)] to-transparent" />
+              {children}
+            </div>
+
+            {/* Security Note */}
+            <Card className="mt-14 border-l-[3px] border-yellow-400 bg-yellow-500/5">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M4.93 4.93l14.14 14.14M12 2a10 10 0 100 20 10 10 0 000-20z" /></svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-white mb-2 tracking-tight">Security & Privacy First</h3>
+                    <p className="text-[var(--ds-text-muted)] leading-relaxed text-sm">
+                      This guide emphasizes hardened, privacy-respecting configurations. Follow each security step; do not skip for convenience. When unsure, consult community resources before proceeding.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Related Guides */}
+            <RelatedGuides currentGuide={metadata} />
+
+            {/* Footer Navigation */}
+            <div className="mt-16 pt-8 border-t border-[var(--ds-border-subtle)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <Link href="/guides" className="group inline-flex items-center gap-2 text-sm font-medium text-[var(--ds-text-muted)] hover:text-white transition-colors">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--ds-background-secondary)] group-hover:bg-[var(--ds-background-tertiary)] transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </span>
+                Back to Guides
               </Link>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      {/* Table of Contents */}
-      <div className="mb-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-          📋 What You'll Learn
-        </h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          This guide covers everything from prerequisites to troubleshooting. 
-          All commands are tested and work exactly as written.
-        </p>
-      </div>
-
-      {/* Guide Content */}
-      <div className="prose prose-lg dark:prose-invert max-w-none
-                     prose-headings:text-gray-900 dark:prose-headings:text-white
-                     prose-p:text-gray-700 dark:prose-p:text-gray-300
-                     prose-a:text-red-600 dark:prose-a:text-red-400 prose-a:no-underline hover:prose-a:underline
-                     prose-code:text-red-600 dark:prose-code:text-red-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
-                     prose-pre:bg-gray-900 prose-pre:text-gray-100
-                     prose-blockquote:border-l-red-500 prose-blockquote:text-gray-600 dark:prose-blockquote:text-gray-400
-                     prose-strong:text-gray-900 dark:prose-strong:text-white">
-        {children}
-      </div>
-
-      {/* Security Warning */}
-      <div className="mt-12 p-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-        <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-yellow-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-              🛡️ Security Reminder
-            </h3>
-            <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-              <p>
-                This guide prioritizes security and privacy. Follow the security sections carefully. 
-                If you're unsure about any step, ask for help in our Matrix chat.
-              </p>
+              <Link href={`/guides/search?category=${encodeURIComponent(metadata.category)}`} className="group inline-flex items-center gap-2 text-sm font-medium text-[var(--ds-text-muted)] hover:text-white transition-colors">
+                More {metadata.category}
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--ds-background-secondary)] group-hover:bg-[var(--ds-background-tertiary)] transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                </span>
+              </Link>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center">
-          <Link
-            href="/guides"
-            className="inline-flex items-center text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
-          >
-            ← Back to All Guides
-          </Link>
-          
-          <div className="flex items-center space-x-4">
-            <Link
-              href={`/guides/search?category=${encodeURIComponent(metadata.category)}`}
-              className="text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-            >
-              More {metadata.category} guides →
-            </Link>
-          </div>
-        </div>
-      </div>
-    </article>
+      </article>
+    </div>
   );
 }

@@ -6,16 +6,40 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q') || '';
     const category = searchParams.get('category') || '';
+    const difficulty = searchParams.get('difficulty') || '';
+    const ukSpecific = searchParams.get('ukSpecific') === 'true';
+    const tags = searchParams.get('tags')?.split(',').filter(Boolean) || [];
     
     // Get all guides
-    const allGuides = await getAllGuides();
+    const allGuides = await getAllGuides({ includeDrafts: false });
     
     let results = allGuides;
     
     // Filter by category if specified
-    if (category) {
+    if (category && category !== 'All Categories') {
       results = results.filter(guide => 
         guide.category.toLowerCase() === category.toLowerCase()
+      );
+    }
+
+    // Filter by difficulty if specified
+    if (difficulty) {
+      results = results.filter(guide => guide.difficulty === difficulty);
+    }
+
+    // Filter by UK specific if specified
+    if (ukSpecific) {
+      results = results.filter(guide => guide.ukSpecific === true);
+    }
+
+    // Filter by tags if specified
+    if (tags.length > 0) {
+      results = results.filter(guide => 
+        tags.every(tag => 
+          guide.tags.some(guideTag => 
+            guideTag.toLowerCase().includes(tag.toLowerCase())
+          )
+        )
       );
     }
     
@@ -62,6 +86,14 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
+      totalResults: results.length,
+      query,
+      filters: {
+        category,
+        difficulty,
+        ukSpecific,
+        tags,
+      },
       results: results.map(guide => ({
         title: guide.title,
         description: guide.description,
@@ -71,6 +103,7 @@ export async function GET(request: NextRequest) {
         slug: guide.slug,
         ukSpecific: guide.ukSpecific,
         tags: guide.tags,
+        lastUpdated: guide.lastUpdated,
       })),
       total: results.length,
     });

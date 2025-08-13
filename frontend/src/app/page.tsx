@@ -1,161 +1,77 @@
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
   const featuredGuides = [
-    {
-      title: "Plex Media Server on Ubuntu",
-      description: "Stop paying Netflix. Set up your own media server that actually works.",
-      category: "Home Servers",
-      difficulty: "Beginner",
-      time: "2-3 hours",
-      href: "/guides/home-servers/plex-ubuntu",
-      ukSpecific: true,
-    },
-    {
-      title: "WireGuard VPN on Ubuntu",
-      description: "Build your own VPN server. Complete with UK router setup.",
-      category: "VPN & Tunnels", 
-      difficulty: "Intermediate",
-      time: "45 minutes",
-      href: "/guides/vpn-tunnels/wireguard-ubuntu",
-      ukSpecific: true,
-    },
-    {
-      title: "UK Router Port Forwarding",
-      description: "BT, Sky, Virgin - stop making this harder than it needs to be.",
-      category: "Networking",
-      difficulty: "Beginner", 
-      time: "20 minutes",
-      href: "/guides/networking/uk-port-forwarding",
-      ukSpecific: true,
-    },
+    { title: 'Plex Media Server on Ubuntu', description: 'Set up a Plex server that actually works.', category: 'Home Servers', difficulty: 'Beginner', time: '2-3 hours', href: '/guides/home-servers/plex-ubuntu', ukSpecific: true },
+    { title: 'WireGuard VPN on Ubuntu', description: 'Roll your own VPN with real UK router steps.', category: 'VPN & Tunnels', difficulty: 'Intermediate', time: '45 minutes', href: '/guides/vpn-tunnels/wireguard-ubuntu', ukSpecific: true },
+    { title: 'UK Router Port Forwarding', description: "BT, Sky, Virgin – stop guessing. Here's what works.", category: 'Networking', difficulty: 'Beginner', time: '20 minutes', href: '/guides/networking/uk-port-forwarding', ukSpecific: true },
   ];
 
   const categories = [
-    {
-      name: "Home Servers",
-      description: "Plex, Nextcloud, Jellyfin - ditch the cloud corporations",
-      icon: "🖥️",
-      href: "/guides/home-servers",
-      guides: 8,
-    },
-    {
-      name: "VPN & Tunnels", 
-      description: "Secure tunnels, mesh networks, fuck ISP snooping",
-      icon: "🔒",
-      href: "/guides/vpn-tunnels",
-      guides: 6,
-    },
-    {
-      name: "Networking",
-      description: "Port forwarding, DNS, reverse proxy - make it work",
-      icon: "🌐", 
-      href: "/guides/networking",
-      guides: 4,
-    },
-    {
-      name: "Security & Privacy",
-      description: "Threat modeling, encryption, operational security",
-      icon: "🛡️",
-      href: "/guides/security",
-      guides: 6,
-    },
-    {
-      name: "Storage & Backup",
-      description: "RAID, ZFS, encrypted backups - don't lose your shit",
-      icon: "💾",
-      href: "/guides/storage", 
-      guides: 4,
-    },
+    { name: 'Home Servers', description: 'Plex, Nextcloud, Jellyfin', icon: '🖥️', href: '/guides/home-servers', guides: 8 },
+    { name: 'VPN & Tunnels', description: 'Tunnels, mesh, routing', icon: '🔒', href: '/guides/vpn-tunnels', guides: 6 },
+    { name: 'Networking', description: 'Forwarding, DNS, proxy', icon: '🌐', href: '/guides/networking', guides: 4 },
+    { name: 'Security & Privacy', description: 'Threat modeling, crypto', icon: '🛡️', href: '/guides/security', guides: 6 },
+    { name: 'Storage & Backup', description: 'RAID, ZFS, backups', icon: '💾', href: '/guides/storage', guides: 4 },
   ];
 
   return (
-    <div className="bg-white dark:bg-gray-900">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-          <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              No Bullshit<br />
-              <span className="text-red-400">Self-Hosting Guides</span>
+    <div className="bg-[var(--ds-background-primary)] text-[var(--ds-text-normal)]">
+      {/* Hero */}
+      <section className="header-discord">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center max-w-3xl mx-auto">
+            <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white">
+              No Bullshit
+              <span className="block text-[var(--ds-background-accent)]">Self-Hosting Guides</span>
             </h1>
-            <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
-              Real tutorials that actually work. No corporate fluff, no affiliate links, 
-              no hand-waving. Just honest, brutal guides for digital freedom.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/guides"
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-lg transition-colors"
-              >
-                Browse All Guides
-              </Link>
-              <Link
-                href="/guides/home-servers/plex-ubuntu"
-                className="border border-gray-300 text-white hover:bg-gray-700 font-bold py-3 px-8 rounded-lg transition-colors"
-              >
-                Start with Plex →
-              </Link>
+            <p className="mt-4 text-lg text-[var(--ds-text-muted)]">Real tutorials that work. No fluff. No affiliate nonsense. Just honest, repeatable steps.</p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+              <Button size="lg"><Link href="/guides">Browse All Guides</Link></Button>
+              <Button size="lg" variant="outline"><Link href="/guides/home-servers/plex-ubuntu">Start with Plex →</Link></Button>
             </div>
           </div>
         </div>
       </section>
 
       {/* UK Focus Banner */}
-      <section className="bg-blue-600 text-white py-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center text-center">
-            <span className="text-2xl mr-3">🇬🇧</span>
-            <p className="text-lg font-medium">
-              UK-focused guides with ISP-specific instructions. Because BT Hub isn't the same as a Netgear.
-            </p>
-          </div>
+      <section className="bg-[var(--ds-background-accent)] text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 text-center">
+          <span className="mr-2 text-xl">🇬🇧</span>
+          UK-focused guides with ISP-specific instructions. BT Hub ≠ Netgear.
         </div>
       </section>
 
       {/* Featured Guides */}
-      <section className="py-16 bg-gray-50 dark:bg-gray-800">
+      <section className="py-14 bg-[var(--ds-background-primary)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Start Here
-            </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300">
-              The most requested guides. Copy-paste commands that work.
-            </p>
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl font-bold text-white">Start Here</h2>
+            <p className="text-[var(--ds-text-muted)] mt-1">Most requested guides. Copy, paste, done.</p>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {featuredGuides.map((guide) => (
-              <Link
-                key={guide.title}
-                href={guide.href}
-                className="bg-white dark:bg-gray-700 rounded-lg shadow-lg hover:shadow-xl transition-shadow border border-gray-200 dark:border-gray-600 overflow-hidden"
-              >
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                      {guide.category}
-                    </span>
-                    {guide.ukSpecific && (
-                      <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-                        🇬🇧 UK
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                    {guide.title}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    {guide.description}
-                  </p>
-                  <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                    <span className="bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded">
-                      {guide.difficulty}
-                    </span>
-                    <span>{guide.time}</span>
-                  </div>
-                </div>
+              <Link key={guide.title} href={guide.href} className="group block">
+                <Card className="card hover:border-[var(--ds-border-strong)] transition-colors">
+                  <CardHeader className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ds-background-accent)]">{guide.category}</span>
+                      {guide.ukSpecific && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-[var(--ds-border-subtle)] bg-[var(--ds-background-secondary)]">🇬🇧 UK</span>
+                      )}
+                    </div>
+                    <CardTitle className="group-hover:text-white">{guide.title}</CardTitle>
+                    <CardDescription className="text-[var(--ds-text-muted)]">{guide.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between text-sm text-[var(--ds-text-muted)]">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[var(--ds-background-tertiary)] border border-[var(--ds-border-subtle)]">{guide.difficulty}</span>
+                      <span className="flex items-center"><svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>{guide.time}</span>
+                    </div>
+                  </CardContent>
+                </Card>
               </Link>
             ))}
           </div>
@@ -163,73 +79,49 @@ export default function Home() {
       </section>
 
       {/* Categories */}
-      <section className="py-16">
+      <section className="py-14">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Browse by Category
-            </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300">
-              Find exactly what you need. No endless scrolling through irrelevant crap.
-            </p>
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl font-bold text-white">Browse by Category</h2>
+            <p className="text-[var(--ds-text-muted)] mt-1">Find what you need fast.</p>
           </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {categories.map((category) => (
-              <Link
-                key={category.name}
-                href={category.href}
-                className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 dark:border-gray-700"
-              >
-                <div className="text-center">
-                  <div className="text-4xl mb-4">{category.icon}</div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                    {category.name}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    {category.description}
-                  </p>
-                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">
-                    {category.guides} guides →
-                  </span>
-                </div>
+              <Link key={category.name} href={category.href} className="group block">
+                <Card className="text-center card hover:border-[var(--ds-border-strong)]">
+                  <CardContent className="pt-8">
+                    <div className="text-4xl mb-4 group-hover:scale-105 transition-transform">{category.icon}</div>
+                    <CardTitle className="mb-2 group-hover:text-white">{category.name}</CardTitle>
+                    <CardDescription className="text-[var(--ds-text-muted)]">{category.description}</CardDescription>
+                    <div className="mt-4 inline-flex items-center text-sm text-[var(--ds-background-accent)]">{category.guides} guides<svg className="ml-1 w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></div>
+                  </CardContent>
+                </Card>
               </Link>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Philosophy Section */}
-      <section className="py-16 bg-gray-900 text-white">
+      {/* Philosophy */}
+      <section className="py-14 bg-[var(--ds-background-secondary)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Why We're Different</h2>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Because most self-hosting tutorials are written by people who've never broken anything.
-            </p>
+          <div className="mb-8 text-center">
+            <h2 className="text-2xl font-bold text-white">Why We're Different</h2>
+            <p className="text-[var(--ds-text-muted)] mt-1 max-w-3xl mx-auto">Because most tutorials are written by people who've never broken anything.</p>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="text-3xl mb-4">💯</div>
-              <h3 className="text-lg font-bold mb-2">Brutal Honesty</h3>
-              <p className="text-gray-300">If something sucks, we'll tell you. No corporate bullshit.</p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-4">🔒</div>
-              <h3 className="text-lg font-bold mb-2">Privacy First</h3>
-              <p className="text-gray-300">Security warnings upfront. Your privacy matters more than convenience.</p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-4">🇬🇧</div>
-              <h3 className="text-lg font-bold mb-2">UK Focused</h3>
-              <p className="text-gray-300">Router guides that work with BT, Sky, Virgin. Legal considerations included.</p>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl mb-4">⚡</div>
-              <h3 className="text-lg font-bold mb-2">Actually Works</h3>
-              <p className="text-gray-300">Every command tested. Every config file included. No gaps.</p>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { icon: '💯', title: 'Brutal Honesty', text: "If something sucks, we'll tell you." },
+              { icon: '🔒', title: 'Privacy First', text: 'Warnings up front. Privacy before convenience.' },
+              { icon: '🇬🇧', title: 'UK Focused', text: 'Router guides that work for BT, Sky, Virgin.' },
+              { icon: '⚡', title: 'Actually Works', text: 'Every command tested. No gaps.' },
+            ].map((item) => (
+              <div key={item.title} className="text-center card p-6">
+                <div className="text-3xl mb-2">{item.icon}</div>
+                <h3 className="text-white font-semibold">{item.title}</h3>
+                <p className="mt-1 text-sm text-[var(--ds-text-muted)]">{item.text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

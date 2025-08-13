@@ -21,7 +21,7 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: GuidePageProps) {
   const resolvedParams = await params;
   const slug = resolvedParams.slug.join('/');
-  const guide = await getGuideBySlug(slug);
+  const guide = await getGuideBySlug(slug, { includeDrafts: false });
 
   if (!guide) {
     return {
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: GuidePageProps) {
 export default async function GuidePage({ params }: GuidePageProps) {
   const resolvedParams = await params;
   const slug = resolvedParams.slug.join('/');
-  const guide = await getGuideBySlug(slug);
+  const guide = await getGuideBySlug(slug, { includeDrafts: false });
 
   if (!guide) {
     notFound();
