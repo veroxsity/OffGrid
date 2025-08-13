@@ -13,10 +13,15 @@ lastUpdated: "2025-08-13"
 
 # FreshRSS with Docker
 
+> TL;DR: Start FreshRSS with persistent volumes, complete the web installer, schedule updates, and back up `data` and `extensions`.
+
+## Compose
+
 ```yaml
 services:
   freshrss:
     image: freshrss/freshrss:latest
+    container_name: freshrss
     ports:
       - "8086:80"
     volumes:
@@ -25,4 +30,31 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:8086` → admin setup.
+## Verification
+- Open `http://SERVER_IP:8086` → finish installation wizard
+- Create an admin and add feeds
+
+## Backups
+```bash
+sudo tar -czf /backups/freshrss-$(date +%F).tgz ./data ./extensions
+```
+
+## Troubleshooting
+- 502 via proxy
+  - Ensure container is healthy and port mapped
+- Feeds not updating
+  - Check cron/cronjobs in app settings; ensure PHP timeouts aren’t exceeded
+
+## Security hardening checklist
+- Put behind a reverse proxy with HTTPS and auth
+- Disable unauthenticated public access unless necessary
+- Keep the image updated and rotate admin passwords regularly
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data ./extensions
+```
+
+## References
+- FreshRSS docs: https://freshrss.github.io/FreshRSS/en/

@@ -3,7 +3,7 @@ title: "Linkding (Bookmarks) with Docker"
 description: "Minimal, fast self-hosted bookmarking service."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "5 minutes"
+time: "10 minutes"
 ukSpecific: false
 status: "published"
 tags: ["linkding","bookmarks","docker"]
@@ -13,10 +13,15 @@ lastUpdated: "2025-08-13"
 
 # Linkding (Bookmarks) with Docker
 
+> TL;DR: Run Linkding with a persistent data directory, create the admin user, and put it behind TLS.
+
+## Compose
+
 ```yaml
 services:
   linkding:
     image: sissbruecker/linkding:latest
+    container_name: linkding
     ports:
       - "9090:9090"
     volumes:
@@ -24,4 +29,28 @@ services:
     restart: unless-stopped
 ```
 
-Login at `http://SERVER_IP:9090` (default admin created on first run).
+## Verification
+- Open `http://SERVER_IP:9090`, create the first user
+
+## Backups
+```bash
+sudo tar -czf /backups/linkding-$(date +%F).tgz ./data
+```
+What this does: Archives bookmarks database and config for safe restore.
+
+## Troubleshooting
+- Admin user creation page not shown
+  - Clear browser cache or restart container; ensure `./data` is writable and not pre-populated with conflicting state.
+
+## Security hardening checklist
+- Serve via HTTPS behind a reverse proxy; avoid exposing 9090 publicly
+- Use strong passwords; restrict signups or admin access
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- Linkding docs: https://github.com/sissbruecker/linkding

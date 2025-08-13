@@ -13,28 +13,170 @@ lastUpdated: "2025-08-13"
 
 # NFS Server on Ubuntu
 
-## Install
+Share folders to Linux/Unix clients over your LAN using NFSv4 with secure defaults.
+
+> TL;DR: Install NFS server, create a share, export it to your LAN with root_squash, allow LAN in the firewall, verify with showmount, then mount from clients and add an fstab entry.
+
+## Before you begin
+- Ensure the server is updated and you have sudo
+- Decide the export path (e.g., /srv/nfs/share) and LAN CIDR (e.g., 192.168.1.0/24)
+- NFS is not encrypted; only use on trusted LAN or over a VPN (WireGuard)
 
 ```bash
-sudo apt update && sudo apt install -y nfs-kernel-server
+sudo apt update && sudo apt -y upgrade
+sudo apt -y install nfs-kernel-server nfs-common ufw
 ```
 
-## Export a folder
+What this does: Installs the NFS server and client utilities and UFW for basic firewalling.
+
+## Security model and defaults
+- NFS relies on client-side UID/GID; prefer consistent user IDs across hosts
+- Restrict exports to your LAN CIDR and use `root_squash` (default) to map client root to anonymous
+- Do not expose NFS to the internet; use a VPN for remote access
+- Optional: force NFSv4 by mounting with `-t nfs4` on clients
+
+## 1) Create an export directory and set permissions
 
 ```bash
 sudo mkdir -p /srv/nfs/share
-sudo chown -R nobody:nogroup /srv/nfs/share
+# Option A: group-based access
+sudo groupadd -f nfs-shares
+sudo chgrp -R nfs-shares /srv/nfs/share
+sudo chmod -R 2775 /srv/nfs/share   # setgid for inherited group
 
-echo "/srv/nfs/share 192.168.1.0/24(rw,sync,no_subtree_check)" | sudo tee -a /etc/exports
+# Option B: anonymous access mapping (still auth by UID/GID)
+# sudo chown -R nobody:nogroup /srv/nfs/share
+```
+
+What this does: Prepares a shared directory and sets cooperative permissions for multiple users.
+
+## 2) Export the folder to your LAN
+
+Edit exports:
+
+```bash
+sudo nano /etc/exports
+```
+
+Append a line (adjust CIDR):
+
+```exports
+/srv/nfs/share 192.168.1.0/24(rw,sync,no_subtree_check,root_squash)
+```
+
+What this does: Grants read-write access to hosts on your LAN, writes synchronously for safety, disables subtree checks, and prevents remote root from acting as root on the server.
+
+Apply and enable server:
+
+```bash
 sudo exportfs -ra
 sudo systemctl enable --now nfs-server
 ```
 
-## Mount from clients
+## 3) Allow NFS through the firewall (LAN only)
 
 ```bash
-sudo apt install -y nfs-common
-sudo mount -t nfs SERVER_IP:/srv/nfs/share /mnt
+# Allow NFS application profile from your LAN only
+sudo ufw allow from 192.168.1.0/24 to any app NFS
+sudo ufw enable
+sudo ufw status numbered
 ```
 
-Make persistent via `/etc/fstab`.
+What this does: Opens the necessary NFS/rpcbind ports to your LAN while keeping the host locked down.
+
+## 4) Verify exports
+
+```bash
+# Show exported directories and options
+sudo exportfs -v
+
+# From a client or the server itself
+showmount -e SERVER_IP
+rpcinfo -p | grep -E 'nfs|rpcbind'
+```
+
+Expected: The share appears with your CIDR and options; NFS services are registered.
+
+## 5) Mount from Linux clients
+
+Install client tools and mount:
+
+```bash
+sudo apt -y install nfs-common
+sudo mkdir -p /mnt/share
+sudo mount -t nfs4 SERVER_IP:/srv/nfs/share /mnt/share
+```
+
+What this does: Mounts the exported directory using NFSv4.
+
+Make it persistent in `/etc/fstab` (use your server IP/hostname):
+
+```fstab
+# SERVER_IP:/srv/nfs/share  /mnt/share  nfs4  defaults,_netdev,noatime,x-systemd.automount  0  0
+```
+
+Apply without reboot:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart remote-fs.target
+# or
+sudo mount -a
+```
+
+## 6) Verification (read/write smoke test)
+
+```bash
+# On a client after mounting
+mkdir -p /mnt/share/test && echo ok > /mnt/share/test/file.txt
+cat /mnt/share/test/file.txt
+stat -c '%U:%G %a' /mnt/share/test /mnt/share/test/file.txt
+```
+
+Expected: "ok" prints; ownership and permissions align with your UID/GID or group strategy.
+
+## Backups and UID/GID considerations
+- Back up: `/etc/exports` and the data path `/srv/nfs/share`
+- Keep user IDs consistent across clients for predictable permissions (or use a shared group)
+- For NFSv4 idmapping, ensure `/etc/idmapd.conf` has a matching Domain across hosts
+
+```bash
+sudo tar -czf /backups/nfs-$(date +%F).tgz /etc/exports /srv/nfs/share
+```
+
+## Security hardening checklist
+- Limit exports to specific subnets or hosts; use `ro` for read-only shares
+- Keep `root_squash` enabled; avoid `no_root_squash`
+- Use a VPN for remote access (never expose NFS on the open internet)
+- Consider client mount options `nosuid`, `nodev`, and `noexec` where appropriate
+- Keep packages updated; monitor `/var/log/syslog` and `journalctl` for NFS events
+- Use firewall allowlists (UFW) to restrict to LAN only; default deny inbound
+
+## Uninstall / rollback
+
+```bash
+# Remove export (edit file and re-export)
+sudo sed -i '\|/srv/nfs/share|d' /etc/exports
+sudo exportfs -ra
+
+# Stop and remove server
+sudo systemctl disable --now nfs-server
+sudo apt -y purge nfs-kernel-server
+
+# Optional: remove data directory (ensure backups)
+sudo rm -rf /srv/nfs/share
+```
+
+What this does: Removes the export, stops/removes NFS server, and deletes the data directory if desired.
+
+## FAQ
+- Q: How do I mount on macOS?
+  - A: `sudo mount -t nfs -o vers=4 SERVER_IP:/srv/nfs/share /Volumes/share`.
+- Q: Does Windows support NFS?
+  - A: Windows Pro/Enterprise provide an NFS client (optional feature). SMB is usually preferable on Windows networks.
+- Q: NFS vs SMB?
+  - A: NFS is native on Unix-like systems; SMB offers better Windows integration.
+
+## References
+- Ubuntu Docs — NFS: https://ubuntu.com/server/docs/service-nfs
+- Arch Wiki — NFS: https://wiki.archlinux.org/title/NFS

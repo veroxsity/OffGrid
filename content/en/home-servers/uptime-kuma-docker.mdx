@@ -3,7 +3,7 @@ title: "Uptime Kuma (Self-hosted Status Page) with Docker"
 description: "Monitor your services with HTTP/TCP/ICMP checks and beautiful status pages."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "10 minutes"
+time: "15 minutes"
 ukSpecific: false
 status: "published"
 tags: ["uptime-kuma","monitoring","docker","status"]
@@ -14,7 +14,9 @@ testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
 
 # Uptime Kuma (Self-hosted Status Page) with Docker
 
-Simple monitoring with notifications.
+Simple monitoring with notifications and public status pages.
+
+> TL;DR: Start the container with a persistent volume, create an admin user, add monitors, configure notifications, and back up `./data`.
 
 ## Deploy
 
@@ -35,6 +37,37 @@ YAML
 docker compose up -d
 ```
 
-Open `http://SERVER_IP:3001` and create an admin account.
+What this does: Launches Uptime Kuma and persists state under `./data`.
 
-Add monitors, set notifications (Telegram, Discord, Email, etc.).
+## Verification
+- Open `http://SERVER_IP:3001` and create an admin account
+- Add an HTTP monitor to verify alerts
+
+## Notifications
+- In Settings → Notifications, add providers (Telegram, Discord, Email, etc.)
+- Test a notification to ensure delivery
+
+## Backups
+```bash
+sudo tar -czf /backups/uptime-kuma-$(date +%F).tgz ./data
+```
+
+## Troubleshooting
+- Container restarts
+  - Check volume permissions; ensure host has free space.
+- No alerts
+  - Verify notification config and per-monitor settings.
+
+## Security hardening checklist
+- Put behind a reverse proxy with TLS
+- Use a strong admin password; enable 2FA once available
+- Limit public status page exposure if it reveals sensitive uptime data
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- Uptime Kuma docs: https://github.com/louislam/uptime-kuma

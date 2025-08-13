@@ -3,7 +3,7 @@ title: "Portainer (Docker UI) with Docker"
 description: "Manage your containers, images, networks, and stacks with a web UI."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "10 minutes"
+time: "15 minutes"
 ukSpecific: false
 status: "published"
 tags: ["portainer","docker","compose","gui"]
@@ -15,6 +15,8 @@ testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
 # Portainer (Docker UI) with Docker
 
 Portainer lets you manage Docker visually.
+
+> TL;DR: Deploy Portainer CE, set a strong admin password, add your local Docker endpoint, and back up `./data`.
 
 ## Deploy
 
@@ -36,10 +38,31 @@ YAML
 docker compose up -d
 ```
 
-Open `https://SERVER_IP:9443` → set admin password.
+What this does: Launches Portainer with access to the local Docker socket and a persistent data dir.
+
+## Verification
+- Open `https://SERVER_IP:9443` → set admin password → add local environment
 
 ## Tips
+- Use Stacks to deploy Compose YAMLs
+- Enable backups under Settings and also back up `./data`
 
-- Use Stacks to deploy Compose files.
-- Create endpoint-only users; protect with strong passwords.
-- Backup `./data`.
+## Troubleshooting
+- 502/Bad Gateway
+  - Wait for first-time setup to complete; check container logs
+- Permission errors
+  - Ensure your user can access the Docker socket or rely on root-only access
+
+## Security hardening checklist
+- Restrict access to 9443 to trusted IPs; put behind reverse proxy + SSO
+- Enable TLS and enforce strong admin credentials
+- Consider agent mode for remote endpoints (don’t expose docker.sock widely)
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- Portainer docs: https://docs.portainer.io/

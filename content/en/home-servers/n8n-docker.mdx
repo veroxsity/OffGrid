@@ -13,14 +13,22 @@ lastUpdated: "2025-08-13"
 
 # n8n (Automation) with Docker
 
+> TL;DR: Run n8n with basic auth enabled, set `WEBHOOK_TUNNEL_URL` to your public URL if needed, persist data, and reverse proxy with TLS.
+
+## Compose
+
 ```yaml
 services:
   n8n:
     image: n8nio/n8n:latest
+    container_name: n8n
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
       - N8N_BASIC_AUTH_PASSWORD=change-me
+      - WEBHOOK_TUNNEL_URL=https://n8n.example.com
+      - N8N_HOST=n8n.example.com
+      - N8N_PORT=5678
     ports:
       - "5678:5678"
     volumes:
@@ -28,4 +36,30 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:5678`.
+## Verification
+- Open `http://SERVER_IP:5678` (or proxied domain) and log in with basic auth
+- Create a simple workflow and execute it
+
+## Backups
+```bash
+sudo tar -czf /backups/n8n-$(date +%F).tgz ./data
+```
+
+## Troubleshooting
+- Webhooks not reachable
+  - Ensure your public URL is correct and proxy forwards to 5678
+- Permissions issues writing data
+  - Ensure the host directory is writable by container user
+
+## Security hardening checklist
+- Put behind TLS and consider additional auth (OIDC) at the proxy
+- Rotate credentials; avoid default passwords
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- n8n docs: https://docs.n8n.io/

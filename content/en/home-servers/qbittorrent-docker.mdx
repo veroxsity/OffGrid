@@ -3,7 +3,7 @@ title: "qBittorrent with Docker"
 description: "Self-hosted torrent client with web UI."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "10 minutes"
+time: "15 minutes"
 ukSpecific: false
 status: "published"
 tags: ["qbittorrent","torrent","download","docker"]
@@ -13,14 +13,23 @@ lastUpdated: "2025-08-13"
 
 # qBittorrent with Docker
 
+Run qBittorrent with a persistent config and secure the web UI.
+
+> TL;DR: Start the container, change the default admin password immediately, map downloads correctly, and avoid exposing the web UI to the internet. Optionally run behind a VPN container.
+
+## Compose
+
 ```yaml
 services:
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
     environment:
       - PUID=1000
       - PGID=1000
+      - TZ=Europe/London
       - WEBUI_PORT=8081
+      - UMASK=002
     ports:
       - 6881:6881
       - 6881:6881/udp
@@ -31,4 +40,36 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:8081` (default admin/adminadmin, change immediately).
+What this does: Exposes BitTorrent ports and the web UI, and persists settings in `./config`.
+
+## Verification
+- Open `http://SERVER_IP:8081`
+- Default credentials are `admin` / `adminadmin` → change immediately (Tools → Options → Web UI)
+- Set download paths under Options → Downloads to `/downloads`
+
+## Optional: run behind a VPN (gluetun)
+- Use a VPN container (e.g., `qmcgaw/gluetun`) and attach qBittorrent to its network stack with `network_mode: "service:gluetun"`
+- Only publish ports on the VPN container
+
+## Troubleshooting
+- Web UI not reachable
+  - Check container is listening on 8081; verify firewall
+- Poor connectivity
+  - Ensure port 6881 TCP/UDP is forwarded from your router (or rely on VPN provider’s port-forward feature)
+- Permission errors writing to downloads
+  - Align `PUID/PGID` with the owner of `/srv/downloads`; adjust UMASK
+
+## Security hardening checklist
+- Do not expose port 8081 to the internet; put behind a reverse proxy + auth or VPN
+- Change admin password and consider whitelisting LAN subnets
+- Enable encryption preference in BitTorrent settings; consider blocklists
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./config /srv/downloads/*
+```
+
+## References
+- Image docs: https://docs.linuxserver.io/images/docker-qbittorrent/
+- qBittorrent: https://www.qbittorrent.org/

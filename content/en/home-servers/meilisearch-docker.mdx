@@ -3,7 +3,7 @@ title: "Meilisearch with Docker"
 description: "Blazing-fast, lightweight search engine for your apps."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "10 minutes"
+time: "15 minutes"
 ukSpecific: false
 status: "published"
 tags: ["meilisearch","search","docker"]
@@ -13,12 +13,18 @@ lastUpdated: "2025-08-13"
 
 # Meilisearch with Docker
 
+> TL;DR: Run the Meilisearch container with a persistent volume and a strong master key, open the admin UI, generate search-only keys for clients, and back up the data directory.
+
+## Compose
+
 ```yaml
 services:
   meilisearch:
     image: getmeili/meilisearch:latest
+    container_name: meilisearch
     environment:
       MEILI_MASTER_KEY: change-me
+      MEILI_ENV: production
     ports:
       - "7700:7700"
     volumes:
@@ -26,4 +32,33 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:7700` and set an API key for clients.
+What this does: Launches Meilisearch with persistent storage and a master key for admin operations.
+
+## Verification
+- Open `http://SERVER_IP:7700` and authenticate with the master key.
+- Create an index and add documents via the UI or API.
+
+## Backups
+```bash
+sudo tar -czf /backups/meili-$(date +%F).tgz ./data
+```
+
+## Troubleshooting
+- 401 Unauthorized
+  - Ensure you pass `Authorization: Bearer <key>` header.
+- Container restarts
+  - Check volume permissions; ensure the host path is writable by the container user.
+
+## Security hardening checklist
+- Store the master key in an `.env` or secret; rotate regularly
+- Use search-only and admin keys with least privilege for apps
+- Put behind a reverse proxy with TLS and rate limiting
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- Meilisearch docs: https://www.meilisearch.com/docs

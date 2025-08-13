@@ -16,6 +16,24 @@ testedOn: ["Ubuntu 24.04"]
 
 Powerful filesystem with checksums, snapshots, and easy RAID.
 
+> TL;DR: Install ZFS, identify the correct disks, create a pool with ashift=12, enable compression, create datasets per use, schedule snapshots and scrubs, and verify with `zpool status` and `zfs list`.
+
+## Before you begin
+- Ensure you have recent backups of any disks you might touch
+- List disks and confirm device names won’t change (prefer whole disks, not partitions)
+
+```bash
+lsblk -o NAME,SIZE,MODEL,TYPE,MOUNTPOINT
+sudo apt update && sudo apt -y install zfsutils-linux
+```
+
+What this does: Shows the storage layout and installs the ZFS tools.
+
+## Security model and defaults
+- Data integrity: ZFS detects/corrects corruption via checksums and redundancy
+- Encryption: Not enabled by default; use native per-dataset encryption when needed
+- Redundancy: Mirrors/RAIDZ protect against disk failure, not user error—still back up
+
 ## Install
 
 ```bash
@@ -23,29 +41,46 @@ sudo apt update
 sudo apt install -y zfsutils-linux
 ```
 
+What this does: Adds the ZFS userland utilities and kernel modules.
+
 ## Create pool
 
-Mirror example (2 disks `/dev/sdb /dev/sdc`):
+Identify your target disks (example: `/dev/sdb /dev/sdc`). Consider sector size and set `ashift=12` for 4K sectors.
+
+Mirror example (2 disks):
 
 ```bash
-sudo zpool create tank mirror /dev/sdb /dev/sdc
+sudo zpool create -o ashift=12 tank mirror /dev/sdb /dev/sdc
 ```
 
 RAIDZ1 example (3+ disks):
 
 ```bash
-sudo zpool create tank raidz1 /dev/sdb /dev/sdc /dev/sdd
+sudo zpool create -o ashift=12 tank raidz1 /dev/sdb /dev/sdc /dev/sdd
 ```
+
+What this does: Creates a pool named `tank` with optimal sector alignment and redundancy.
 
 ## Datasets and settings
 
+Enable compression and create datasets for organization/performance isolation:
+
 ```bash
 sudo zfs set compression=zstd tank
+sudo zfs set atime=off tank
+sudo zfs set xattr=sa tank
+sudo zfs set acltype=posixacl tank
+
 sudo zfs create tank/media
 sudo zfs create tank/backups
 ```
 
-Mountpoints appear under `/tank/*` by default.
+Optional encrypted dataset:
+```bash
+sudo zfs create -o encryption=aes-256-gcm -o keyformat=passphrase tank/secure
+```
+
+Mountpoints appear under `/tank/*` by default (Ubuntu may mount under root `/tank`).
 
 ## Snapshots and pruning
 
@@ -57,6 +92,14 @@ sudo zfs list -t snapshot
 sudo zfs list -t snapshot | awk '/tank@daily/ {print $1}' | head -n -14 | xargs -r sudo zfs destroy
 ```
 
+Send snapshots to another pool/host (incremental):
+```bash
+# First full send
+sudo zfs send -R tank@daily-2025-08-13 | ssh backuphost sudo zfs receive -F backup/tank
+# Incremental later
+sudo zfs send -R -I @daily-2025-08-13 tank@daily-$(date +%F) | ssh backuphost sudo zfs receive -F backup/tank
+```
+
 ## Scrub monthly
 
 ```bash
@@ -64,7 +107,96 @@ sudo zpool scrub tank
 sudo zpool status -v
 ```
 
-## Notes
+Automate via cron (monthly):
+```bash
+sudo crontab -e
+# Add: 0 3 1 * * /usr/sbin/zpool scrub tank
+```
 
-- Use whole disks, not partitions, where possible.
-- Back up your `zpool status` and topology.
+## Verify
+
+```bash
+sudo zpool status -v
+sudo zfs list -o name,used,avail,compressratio,mountpoint
+sudo zpool get ashift tank
+```
+
+Expected: Pool ONLINE, no errors; datasets present; `ashift=12`.
+
+## Troubleshooting
+
+- Cannot create pool: device busy
+  - Ensure disks aren’t mounted or part of mdraid/LVM; `sudo wipefs -a /dev/sdX` (DANGEROUS) after triple-checking.
+- Pool degraded
+  - Check which device failed in `zpool status`; replace with `sudo zpool replace tank <old> <new>`.
+- Import issues after reboot
+  - `sudo zpool import`; verify by-id/by-path usage to avoid name changes.
+- Mountpoint already exists
+  - Set a different mountpoint: `sudo zfs set mountpoint=/srv/tank tank`.
+
+## Backups and replication
+
+- Keep frequent snapshots and replicate off-host. See the send examples above.
+- Save pool metadata for disaster recovery docs and audits:
+
+```bash
+mkdir -p ~/zfs-backups
+sudo zpool get all tank > ~/zfs-backups/tank-properties.txt
+sudo zpool history > ~/zfs-backups/tank-history.txt
+sudo zfs list -t snapshot > ~/zfs-backups/tank-snapshots.txt
+```
+
+- Example periodic replication (incremental) to a remote host:
+
+```bash
+# Assume a previous full send exists at receiver (backup/tank)
+LATEST_BASE=$(zfs list -t snapshot -o name -s creation | grep '^tank@daily-' | head -n1)
+LATEST_CURR=$(zfs list -t snapshot -o name -s creation | grep '^tank@daily-' | tail -n1)
+sudo zfs send -R -I "$LATEST_BASE" "$LATEST_CURR" | ssh backuphost sudo zfs receive -F backup/tank
+```
+
+## Security hardening checklist
+
+- Use whole disks addressed via `/dev/disk/by-id/*` to avoid renumbering issues
+- Set `ashift=12` at pool creation; cannot be changed later
+- Enable compression globally: `sudo zfs set compression=zstd tank`
+- Enable TRIM on SSD pools: `sudo zpool set autotrim=on tank`; run an on-demand trim: `sudo zpool trim tank`
+- Use dataset-level controls for safer mounts on media shares:
+  - `sudo zfs set exec=off tank/media`
+  - `sudo zfs set setuid=off tank/media`
+- Pick dataset `recordsize` for workloads (databases/VMs often 8K–16K): `sudo zfs set recordsize=16K tank/appdata`
+- Encrypt sensitive datasets: `sudo zfs create -o encryption=aes-256-gcm -o keyformat=passphrase tank/secure`
+- Schedule monthly scrubs and monitor SMART; alert on errors
+- Replicate snapshots to another machine or pool; periodically test restores
+
+## Uninstall / rollback
+
+DANGEROUS: Destroying a pool erases all data. Ensure verified backups first.
+
+```bash
+# Unmount and export the pool safely
+sudo zfs umount -a || true
+sudo zpool export tank
+
+# If you truly want to remove the pool (irreversible)
+sudo zpool destroy tank   # DANGEROUS
+
+# Remove ZFS utilities (optional)
+sudo apt -y purge zfsutils-linux
+```
+
+## FAQ
+
+- Q: Can I change `ashift` after creating the pool?
+  - A: No. Recreate the pool and restore from backups.
+- Q: Can I expand a RAIDZ vdev by adding a single disk later?
+  - A: Not today. You can add a new vdev to the pool or replace all disks with larger ones sequentially.
+- Q: How do I enable TRIM on SSDs?
+  - A: `sudo zpool set autotrim=on tank`; optionally run `sudo zpool trim tank`.
+- Q: Best practice for disks?
+  - A: Use `/dev/disk/by-id` paths and match devices by serials; avoid `/dev/sdX`.
+
+## References
+- OpenZFS documentation: https://openzfs.github.io/openzfs-docs/
+- Ubuntu ZFS guide: https://ubuntu.com/server/docs/zfs/introduction
+- ZFS tuning (recordsize, ashift): https://openzfs.github.io/openzfs-docs/Performance%20and%20Tuning

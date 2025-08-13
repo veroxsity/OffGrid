@@ -12,8 +12,7 @@ tags: ["plex", "media-server", "streaming", "ubuntu", "uk"]
 
 # Plex Media Server on Ubuntu
 
-## TL;DR
-Set up your own Netflix that you control, with all your media accessible anywhere. Fuck subscription services.
+> TL;DR: Install Plex from the official repo, open 32400/tcp on your LAN, add your libraries, verify at http://SERVER_IP:32400/web, optionally enable secure remote access via port forward or a tunnel, then harden privacy settings and back up the library regularly.
 
 ## What You Need
 
@@ -84,19 +83,20 @@ echo '/dev/sdb1 /mnt/external ext4 defaults 0 0' | sudo tee -a /etc/fstab
 
 ### Step 4: Install Plex Media Server
 
-Add Plex repository:
+Add Plex repository (modern signed-by method):
 ```bash
-curl https://downloads.plex.tv/plex-keys/PlexSign.key | sudo apt-key add -
-echo deb https://downloads.plex.tv/repo/deb public main | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
+sudo install -d -m 0755 /usr/share/keyrings
+curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.key | sudo gpg --dearmor -o /usr/share/keyrings/plex.gpg
+echo "deb [signed-by=/usr/share/keyrings/plex.gpg] https://downloads.plex.tv/repo/deb public main" | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
 ```
 
 Install Plex:
 ```bash
 sudo apt update
-sudo apt install plexmediaserver -y
+sudo apt install -y plexmediaserver
 ```
 
-**What this does**: Downloads and installs Plex from official repository.
+What this does: Adds Plex’s apt repository with a pinned keyring and installs/updates from the official source.
 
 Start and enable Plex:
 ```bash
@@ -104,12 +104,18 @@ sudo systemctl start plexmediaserver
 sudo systemctl enable plexmediaserver
 ```
 
-Verify it's running:
+Optionally allow the web UI on your LAN:
 ```bash
-sudo systemctl status plexmediaserver
+sudo ufw allow 32400/tcp
 ```
 
-**Expected output**: Should show "active (running)" in green.
+Verify it's running:
+```bash
+sudo systemctl status plexmediaserver --no-pager
+ss -tulpn | grep 32400 || sudo netstat -tulpn | grep 32400
+```
+
+**Expected**: Service active; port 32400 listening locally.
 
 ### Step 5: Access Plex Web Interface
 
@@ -146,6 +152,34 @@ sudo chown -R plex:plex /media/plex
 
 **Disable Plex relay (optional):**
 Settings → Network → "Enable Relay" → Disable
+
+## Backups
+
+Back up the Plex application data (includes library, metadata, preferences). Default path on Ubuntu:
+- `/var/lib/plexmediaserver/Library/Application Support/Plex Media Server`
+
+Create a backup (stop briefly for consistency):
+```bash
+sudo systemctl stop plexmediaserver
+sudo tar -czf ~/plex-backup-$(date +%F).tgz -C \
+  "/var/lib/plexmediaserver/Library/Application Support" \
+  "Plex Media Server"
+sudo systemctl start plexmediaserver
+ls -lh ~/plex-backup-*.tgz
+```
+
+Restore example:
+```bash
+sudo systemctl stop plexmediaserver
+sudo rm -rf "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server"/*
+sudo tar -xzf ~/plex-backup-YYYY-MM-DD.tgz -C "/var/lib/plexmediaserver/Library/Application Support"
+sudo chown -R plex:plex "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server"
+sudo systemctl start plexmediaserver
+```
+
+Notes:
+- Store backups off-host; test restores periodically.
+- Back up your media directories separately (the library backup does not include actual media files).
 
 ## When It Goes Wrong
 
@@ -186,64 +220,24 @@ Settings → Network → "Enable Relay" → Disable
 3. Direct play when possible: Convert media to MP4 H.264
 4. Consider Intel QuickSync or NVIDIA hardware acceleration
 
-## Making It Better
+## Uninstall / rollback
 
-### Hardware Acceleration
-If you have Intel CPU with QuickSync:
 ```bash
-# Add plex user to video group
-sudo usermod -a -G video plex
-sudo systemctl restart plexmediaserver
+# Stop service
+sudo systemctl disable --now plexmediaserver
+
+# Remove package
+sudo apt -y purge plexmediaserver
+
+# Optional: remove repository
+sudo rm -f /etc/apt/sources.list.d/plexmediaserver.list /usr/share/keyrings/plex.gpg
+sudo apt update
+
+# Optional: remove app data (DANGEROUS: removes library/metadata)
+sudo rm -rf "/var/lib/plexmediaserver/Library/Application Support/Plex Media Server"
 ```
 
-Enable in Plex: Settings → Transcoder → Hardware Acceleration → Intel QuickSync
-
-### Automatic Media Organization
-Install FileBot for renaming:
-```bash
-sudo apt install openjdk-11-jre-headless
-wget -O filebot.deb https://get.filebot.net/filebot/FileBot_4.9.6/FileBot_4.9.6_amd64.deb
-sudo dpkg -i filebot.deb
-```
-
-### Remote Access Without Port Forwarding
-Use Cloudflare Tunnel (separate guide):
-- No router configuration needed
-- Free tier available
-- Better security than port forwarding
-
-### Storage Optimization
-Use mergerfs for multiple drives:
-```bash
-sudo apt install mergerfs
-# Combines multiple drives into single mount point
-```
-
-## UK-Specific Considerations
-
-### ISP Blocking
-- **Virgin Media**: May throttle streaming traffic during peak hours
-- **BT**: CGNAT on some connections prevents port forwarding
-- **Sky**: Parental controls can block Plex domains
-
-**Solutions:**
-- Contact ISP for static IP if on CGNAT
-- Use VPN or tunnel for consistent access
-- Disable ISP-provided parental filtering
-
-### Legal Considerations
-- **Personal Use**: Streaming your own content is legal
-- **Sharing**: Don't share libraries with friends outside household
-- **Content**: Only stream media you legally own
-- **Recording**: TV recording for personal use is legal under UK law
-
-### Power Costs
-Running 24/7 at UK electricity rates:
-- **Raspberry Pi 4**: ~£15/year
-- **Mini PC (50W)**: ~£80/year  
-- **Old Desktop (200W)**: ~£320/year
-
-Calculate yours: (Watts ÷ 1000) × 24 × 365 × £0.30 = annual cost
+What this does: Stops Plex, removes the package and repo, and optionally deletes the on-disk library.
 
 ## References
 

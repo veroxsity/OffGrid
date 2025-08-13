@@ -3,7 +3,7 @@ title: "Encrypted Backups with Restic + Rclone (Cloud)"
 description: "Automate encrypted backups to B2/R2/S3 using Restic with Rclone remotes."
 category: "Storage"
 difficulty: "Intermediate"
-time: "30 minutes"
+time: "45 minutes"
 ukSpecific: false
 status: "published"
 tags: ["restic","rclone","backup","encryption","s3","b2","r2"]
@@ -16,11 +16,19 @@ testedOn: ["Ubuntu 24.04", "Debian 12"]
 
 Restic provides fast, deduplicated, encrypted backups. Rclone abstracts cloud providers.
 
+> TL;DR: Configure an Rclone remote, initialize a Restic repository on that remote, create a backup script with retention, schedule via systemd timer, verify snapshots and test restores, and move secrets to environment files.
+
+## Before you begin
+- You have an account/bucket on your chosen provider (e.g., Backblaze B2, Cloudflare R2, S3)
+- On servers, avoid storing secrets inline; use systemd EnvironmentFile or an .env with strict perms
+
 ## Install
 
 ```bash
 sudo apt update && sudo apt install -y rclone restic
 ```
+
+What this does: Installs the rclone CLI and restic binary from Ubuntu repositories.
 
 ## Configure Rclone remote (example: Backblaze B2)
 
@@ -29,7 +37,7 @@ rclone config
 # n (new remote) → name: b2 → type: backblaze b2 → set key/secret
 ```
 
-## Initialize a repo
+## Initialize a Restic repository
 
 ```bash
 # Rclone remote path format: remote:bucket/path
@@ -37,7 +45,9 @@ export RESTIC_PASSWORD="change-this"
 restic -r rclone:b2:mybucket/restic-repo init
 ```
 
-## Backup script
+Expected: Repository initialized successfully.
+
+## Backup script with retention
 
 ```bash
 sudo tee /usr/local/bin/backup-restic.sh >/dev/null <<'SH'
@@ -46,14 +56,23 @@ set -euo pipefail
 export RESTIC_PASSWORD="change-this"
 RESTIC_REPO="rclone:b2:mybucket/restic-repo"
 SRC="/srv/data"
-restic -r "$RESTIC_REPO" backup "$SRC" --one-file-system --exclude-caches --verbose
-# Keep: 7 daily, 4 weekly, 6 monthly
+EXCLUDES=("/srv/data/cache" "/srv/data/tmp")
+
+# Build exclude args
+EXCLUDE_ARGS=()
+for p in "${EXCLUDES[@]}"; do EXCLUDE_ARGS+=(--exclude "$p"); done
+
+restic -r "$RESTIC_REPO" backup "$SRC" "${EXCLUDE_ARGS[@]}" \
+  --one-file-system --exclude-caches --verbose
+# Retention: 7 daily, 4 weekly, 6 monthly
 restic -r "$RESTIC_REPO" forget --prune --keep-daily 7 --keep-weekly 4 --keep-monthly 6
 SH
 sudo chmod +x /usr/local/bin/backup-restic.sh
 ```
 
-## Schedule (systemd)
+What this does: Runs a backup with excludes and prunes old snapshots per policy.
+
+## Schedule via systemd
 
 ```bash
 sudo tee /etc/systemd/system/backup-restic.service >/dev/null <<'UNIT'
@@ -62,6 +81,7 @@ Description=Restic backup
 
 [Service]
 Type=oneshot
+EnvironmentFile=-/etc/restic.env
 ExecStart=/usr/local/bin/backup-restic.sh
 UNIT
 
@@ -78,18 +98,76 @@ Unit=backup-restic.service
 WantedBy=timers.target
 UNIT
 
+# Optional: move secrets to /etc/restic.env with 0600 perms
+sudo bash -c 'cat >/etc/restic.env <<EOF
+RESTIC_PASSWORD=change-this
+EOF'
+sudo chmod 600 /etc/restic.env
+
 sudo systemctl enable --now backup-restic.timer
 ```
 
-## Restore
+## Verify backups and test restore
 
 ```bash
 export RESTIC_PASSWORD="change-this"
 restic -r rclone:b2:mybucket/restic-repo snapshots
-restic -r rclone:b2:mybucket/restic-repo restore latest --target /restore
+# Restore a small path to a temporary target
+sudo mkdir -p /restore-test
+restic -r rclone:b2:mybucket/restic-repo restore latest --target /restore-test --include /srv/data/important.txt
+ls -l /restore-test/srv/data/ || true
 ```
 
-## Notes
+Expected: Snapshots list non-empty; selected files restore under /restore-test.
 
-- Keep `RESTIC_PASSWORD` secret (use `EnvironmentFile` in systemd for production).
-- Test restores regularly.
+## Troubleshooting
+- Repository not found / auth errors
+  - Verify `rclone config` and credentials; test with `rclone ls b2:mybucket`.
+- Password mismatch
+  - Ensure `RESTIC_PASSWORD` matches the repository; do not lose it (no backdoor).
+- Slow backups
+  - Use `--iexclude-file` or excludes to skip transient data; consider `--compression` if using newer restic versions that support it.
+- Rate limits
+  - Add `--limit-upload` on constrained networks or provider caps.
+
+Useful commands:
+```bash
+restic check
+restic prune
+rclone config file
+rclone ls b2:mybucket | head
+```
+
+## Security hardening checklist
+- Store passwords in `/etc/restic.env` (0600) or a secret manager
+- Restrict backup source to a dedicated service account with least privilege
+- Encrypt provider credentials at rest; avoid world-readable configs
+- Monitor backup logs and set up alerting on failures
+- Avoid storing long-lived API keys in shell history; prefer environment files
+
+## Cleanup / uninstall
+
+```bash
+sudo systemctl disable --now backup-restic.timer || true
+sudo rm -f /etc/systemd/system/backup-restic.{service,timer}
+sudo systemctl daemon-reload
+sudo rm -f /usr/local/bin/backup-restic.sh /etc/restic.env
+```
+
+Notes:
+- Deleting local scripts does not remove the remote repository. Use `restic forget --prune` to manage retention.
+- Keep the repository password safe; without it, data is unrecoverable.
+
+## FAQ
+- Q: Can I change the repository password?
+  - A: Not directly; create a new repo and migrate via restore + backup.
+- Q: Multiple backup sources to one repo?
+  - A: Yes; hostnames are tracked per snapshot.
+- Q: How to keep secrets out of history?
+  - A: Use environment files and avoid committing to VCS; set permissions to 0600.
+
+## References
+- Restic docs: https://restic.readthedocs.io/
+- Rclone docs: https://rclone.org/
+- Backblaze B2: https://www.backblaze.com/b2/cloud-storage.html
+- Cloudflare R2: https://developers.cloudflare.com/r2/

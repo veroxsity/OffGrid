@@ -13,22 +13,37 @@ lastUpdated: "2025-08-13"
 
 # Traefik Reverse Proxy with Docker + Cloudflare DNS Challenge
 
-Obtain certs even behind CGNAT using DNS-01.
+Obtain certs even behind CGNAT using DNS-01 with Cloudflare.
 
-## Compose
+> TL;DR: Create a Cloudflare API token (Zone.DNS:Edit), run Traefik with the Cloudflare DNS challenge and persistent `acme.json`, then label your services. Certificates are issued without any inbound ports from the internet.
+
+## Before you begin
+- Your domain is on Cloudflare (nameservers set) and you can create an API token
+- Create a token with least privilege: Zone.DNS:Edit and Zone.Zone:Read for specific zones only
+- Decide whether records should be Proxied (orange cloud) or DNS only; Traefik works with either for DNS-01
+- Optional: create a Docker network `proxy` for Traefik and services to share
+
+```bash
+docker network create proxy || true
+```
+
+## Compose (Traefik v3)
 
 ```yaml
 services:
   traefik:
     image: traefik:v3.0
+    container_name: traefik
     command:
       - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.cf.acme.dnschallenge=true"
       - "--certificatesresolvers.cf.acme.dnschallenge.provider=cloudflare"
       - "--certificatesresolvers.cf.acme.email=you@example.com"
       - "--certificatesresolvers.cf.acme.storage=/letsencrypt/acme.json"
+      - "--api.dashboard=false" # enable only behind auth
     ports:
       - "80:80"
       - "443:443"
@@ -37,24 +52,73 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
+    networks:
+      - proxy
     restart: unless-stopped
-```
 
-Set `CF_DNS_API_TOKEN` with zone DNS edit permissions.
-
-## Example service
-
-```yaml
   whoami:
     image: traefik/whoami
+    container_name: whoami
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.whoami.rule=Host(`whoami.example.com`)"
       - "traefik.http.routers.whoami.entrypoints=websecure"
       - "traefik.http.routers.whoami.tls.certresolver=cf"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
 ```
 
-## Notes
+What this does: Runs Traefik on 80/443, uses Cloudflare DNS challenge with a token, persists ACME state, and exposes an example service via labels.
 
-- Use Cloudflare DNS for your domain.
-- Strict API scopes are safer (Zone:DNS:Edit for target zone).
+Security: Set `chmod 600 ./letsencrypt/acme.json` on first creation.
+
+## Verification
+
+```bash
+docker compose up -d
+docker compose logs -f traefik | sed -n '1,200p'
+```
+
+Expected: ACME DNS challenge starts when you first hit `https://whoami.example.com` and a cert is stored in `acme.json`.
+
+Check DNS token and storage:
+```bash
+ls -l ./letsencrypt/acme.json
+```
+
+## Troubleshooting
+- Incorrect token scopes or zone
+  - Ensure token has Zone.DNS:Edit and Zone.Zone:Read for the target zone only.
+- Propagation delays
+  - Some DNS setups take a few seconds; Traefik retries, but excessive delay can fail issuance.
+- 404/404 from whoami
+  - Verify labels (host matches exact FQDN), container is on `proxy` network, and router uses `websecure`.
+- Cloudflare proxied records
+  - DNS-01 works regardless of proxy setting; issue is unrelated to 80/443 reachability from the internet.
+
+## Security hardening checklist
+- Keep dashboard disabled or protect it behind SSO (forward auth) and IP allowlists
+- Rotate Cloudflare tokens; store in an `.env` file with 0600 perms
+- Use middleware for rate limiting and security headers on routers
+- Keep Traefik and Docker updated
+
+## Uninstall / rollback
+```bash
+docker compose down
+rm -rf ./letsencrypt
+```
+
+## FAQ
+- Q: Can I issue wildcard certs?
+  - A: Yes. Set router host rules like `Host(`app.example.com`)` and add SANs via `tls.domains` if needed; DNS-01 supports wildcards.
+- Q: Multiple domains?
+  - A: Create additional resolvers or use `tls.domains[0].main`/`sans` labels per router.
+
+## References
+- Traefik ACME: https://doc.traefik.io/traefik/https/acme/
+- LEGO Cloudflare: https://go-acme.github.io/lego/dns/cloudflare/
+- Cloudflare API tokens: https://developers.cloudflare.com/fundamentals/api/get-started/create-token/

@@ -13,46 +13,209 @@ lastUpdated: "2025-08-13"
 
 # WireGuard Site-to-Site (Ubuntu ↔ Ubuntu)
 
-Two sites: A (10.0.1.0/24) and B (10.0.2.0/24).
+Two sites: A (10.0.1.0/24) and B (10.0.2.0/24). We will create a routed tunnel over wg0 using a small point-to-point subnet (10.8.0.0/24).
 
-## A: `/etc/wireguard/wg0.conf`
+> TL;DR: Generate keys on both ends, choose routed (preferred) or NAT mode, create `/etc/wireguard/wg0.conf` on A and B with AllowedIPs set to the opposite LAN + the peer /32, enable persistent IP forwarding, allow UDP/51820, start `wg-quick@wg0`, add static routes on edge routers (if routed mode), and verify with ping and `wg show`.
 
+## Prerequisites
+- Two Ubuntu hosts (22.04/24.04) each reachable from the other (public IP or port-forward UDP 51820)
+- Admin on the edge routers (for routed mode static routes)
+- sudo privileges on both hosts
+
+## 1) Generate keys on both sites
+On Site A:
+```bash
+cd /etc/wireguard
+sudo umask 077
+sudo wg genkey | sudo tee a_private.key | wg pubkey | sudo tee a_public.key
+```
+On Site B:
+```bash
+cd /etc/wireguard
+sudo umask 077
+sudo wg genkey | sudo tee b_private.key | wg pubkey | sudo tee b_public.key
+```
+What this does: Creates private/public keypairs for each peer and stores them with restricted permissions.
+
+Optional: extra defense-in-depth PresharedKey (must be used on both peers):
+```bash
+wg genpsk | sudo tee psk.key
+```
+
+## 2) Decide topology: Routed vs NAT
+- Routed (preferred): No NAT. Add static routes on edge routers so 10.0.1.0/24 and 10.0.2.0/24 know to reach each other via the WireGuard boxes. Cleaner, preserves client IPs.
+- NAT: If you cannot add routes, MASQUERADE on each WireGuard box so the remote site sees traffic as coming from the peer. Simpler but hides original client IPs.
+
+## 3) Site A config: `/etc/wireguard/wg0.conf`
+
+Routed mode (no NAT):
 ```ini
 [Interface]
 Address = 10.8.0.1/24
-PrivateKey = A_PRIVATE
+PrivateKey = (contents of a_private.key)
+ListenPort = 51820
+# Allow forwarding through the host (NAT not used here)
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT
+
+[Peer]
+PublicKey = (contents of b_public.key)
+# Reach remote LAN and the peer's tunnel IP
+AllowedIPs = 10.0.2.0/24, 10.8.0.2/32
+Endpoint = B_WAN_IP_or_DNS:51820
+PersistentKeepalive = 25
+# Optional if you generated one
+# PresharedKey = (contents of psk.key)
+```
+
+NAT mode (if you cannot add routes):
+```ini
+[Interface]
+Address = 10.8.0.1/24
+PrivateKey = (contents of a_private.key)
 ListenPort = 51820
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 
 [Peer]
-PublicKey = B_PUBLIC
+PublicKey = (contents of b_public.key)
 AllowedIPs = 10.0.2.0/24, 10.8.0.2/32
-Endpoint = B_WAN_IP:51820
+Endpoint = B_WAN_IP_or_DNS:51820
 PersistentKeepalive = 25
+# PresharedKey = (contents of psk.key)
 ```
 
-## B: `/etc/wireguard/wg0.conf`
+## 4) Site B config: `/etc/wireguard/wg0.conf`
 
+Routed mode:
 ```ini
 [Interface]
 Address = 10.8.0.2/24
-PrivateKey = B_PRIVATE
+PrivateKey = (contents of b_private.key)
+ListenPort = 51820
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT
+
+[Peer]
+PublicKey = (contents of a_public.key)
+AllowedIPs = 10.0.1.0/24, 10.8.0.1/32
+Endpoint = A_WAN_IP_or_DNS:51820
+PersistentKeepalive = 25
+# PresharedKey = (contents of psk.key)
+```
+
+NAT mode:
+```ini
+[Interface]
+Address = 10.8.0.2/24
+PrivateKey = (contents of b_private.key)
 ListenPort = 51820
 PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
 
 [Peer]
-PublicKey = A_PUBLIC
+PublicKey = (contents of a_public.key)
 AllowedIPs = 10.0.1.0/24, 10.8.0.1/32
-Endpoint = A_WAN_IP:51820
+Endpoint = A_WAN_IP_or_DNS:51820
 PersistentKeepalive = 25
+# PresharedKey = (contents of psk.key)
 ```
 
-Enable IP forwarding on both and add static routes on routers if needed.
+Tip: If both sides are behind NAT, ensure at least one side has a working inbound port-forward for UDP/51820. Dynamic DNS helps if public IPs change.
 
+## 5) Enable IP forwarding (persistent)
 ```bash
-echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward
+echo 'net.ipv4.ip_forward=1' | sudo tee /etc/sysctl.d/99-wireguard.conf
+# Optional if you plan IPv6 later
+echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.d/99-wireguard.conf
+sudo sysctl --system
+```
+What this does: Permanently enables kernel forwarding so routed traffic can traverse the host.
+
+## 6) Open firewall for WireGuard and forwarding
+UFW example (Ubuntu):
+```bash
+sudo ufw allow 51820/udp
+# If using UFW, allow routed traffic through (routed mode)
+sudo ufw route allow in on wg0 out on eth0
+sudo ufw route allow in on eth0 out on wg0
+sudo ufw status verbose
+```
+What this does: Permits the tunnel port and allows forwarding between LAN and wg0.
+
+## 7) Start WireGuard
+```bash
+sudo systemctl enable --now wg-quick@wg0
+sudo systemctl status wg-quick@wg0 --no-pager
+sudo wg show
+```
+What this does: Brings up the wg0 interface and shows peer/handshake state.
+
+## 8) Add static routes (routed mode)
+On your edge routers, add a route for the opposite LAN via the local WireGuard host.
+- Site A router: route 10.0.2.0/24 via 10.0.1.X (the LAN IP of Site A's WG host)
+- Site B router: route 10.0.1.0/24 via 10.0.2.Y (LAN IP of Site B's WG host)
+
+Linux router example (Site A):
+```bash
+sudo ip route add 10.0.2.0/24 via 10.0.1.X
 ```
 
-Test with `ping 10.0.2.x` from Site A and vice versa.
+## 9) Verification
+```bash
+# From Site A host
+ping -c 3 10.8.0.2
+ping -c 3 10.0.2.10   # a host at Site B
+
+# From Site B host
+ping -c 3 10.8.0.1
+ping -c 3 10.0.1.10   # a host at Site A
+
+# Check WireGuard state
+sudo wg show
+
+# Optional: confirm UDP encapsulation on the WAN NIC (replace eth0 if different)
+sudo tcpdump -ni eth0 udp port 51820 -c 5
+```
+Expected outcome: Handshake shows recent; cross-site pings succeed; UDP encapsulated packets visible.
+
+## Troubleshooting
+- No handshake
+  - UDP 51820 not reachable: fix router/NAT forward, ISP blocks, or firewall. Test from outside: `nmap -sU -p 51820 YOUR_IP`.
+  - Wrong keys or peer Endpoint: re-check public keys and DNS/IP.
+  - Both sides behind symmetric NAT: try making one peer the initiator with reachable public port; keep `PersistentKeepalive = 25`.
+- Handshake OK, but no LAN reachability
+  - Missing routes (routed mode): add static routes on edge routers.
+  - UFW forwarding blocked: add `ufw route allow` rules as above.
+  - AllowedIPs wrong: must include remote LAN CIDR and remote tunnel /32.
+  - NAT mode only working one way: ensure MASQUERADE on both peers or adjust expectations.
+- MTU/PMTU issues (stalling transfers)
+  - Set MTU in interface: add `MTU = 1420` (or 1280 on PPPoE) under `[Interface]` on both ends.
+
+Useful logs/commands:
+```bash
+journalctl -u wg-quick@wg0 -n 200 --no-pager
+sudo ss -u -lpn | grep 51820 || sudo netstat -u -lpn | grep 51820
+sudo iptables-save | grep -E 'FORWARD|MASQUERADE'
+```
+
+## Security hardening
+- Use a PresharedKey in addition to public keys (`wg genpsk` on both peers)
+- Restrict 51820/udp to known remote IPs if static: `sudo ufw allow from A.B.C.D to any port 51820 proto udp`
+- Rotate keys periodically and store them securely
+- Avoid exposing other admin services on the WAN; default deny inbound except 51820/udp
+
+## Uninstall / rollback
+```bash
+sudo systemctl disable --now wg-quick@wg0
+sudo apt -y purge wireguard wireguard-tools
+sudo rm -f /etc/wireguard/wg0.conf /etc/wireguard/*_private.key /etc/wireguard/*_public.key /etc/wireguard/psk.key
+sudo rm -f /etc/sysctl.d/99-wireguard.conf
+sudo sysctl --system
+```
+What this does: Stops the tunnel, removes packages/config, and reverts persistent sysctl changes.
+
+## References
+- WireGuard docs: https://www.wireguard.com/
+- wg-quick man page: https://manpages.debian.org/wg-quick
+- UFW routing rules: https://help.ubuntu.com/community/UFW#Forwarding_policy

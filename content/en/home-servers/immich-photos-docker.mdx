@@ -15,12 +15,15 @@ lastUpdated: "2025-08-13"
 
 Includes PostgreSQL and Redis dependencies.
 
+> TL;DR: Deploy Postgres (with vectors), Redis, and Immich server; mount your photos to `upload`, set strong DB credentials, proxy with TLS, and back up DB + media.
+
 ## Compose
 
 ```yaml
 services:
   postgres:
     image: tensorchord/pgvecto-rs:pg16
+    container_name: immich-postgres
     environment:
       POSTGRES_PASSWORD: change-me
       POSTGRES_DB: immich
@@ -30,10 +33,12 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: immich-redis
     restart: unless-stopped
 
   immich-server:
     image: ghcr.io/immich-app/immich-server:release
+    container_name: immich
     environment:
       DB_HOSTNAME: postgres
       DB_USERNAME: postgres
@@ -50,6 +55,33 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:2283` and create admin.
+## Verification
+- Open `http://SERVER_IP:2283` and create the admin user
+- Upload a few photos; confirm face/object search works after indexing
 
-Mount your photo library into `./photos` or as additional volumes.
+## Backups
+```bash
+# DB dump and media archive
+docker exec immich-postgres pg_dump -U postgres immich | gzip > backups/immich-db-$(date +%F).sql.gz
+sudo tar -czf backups/immich-photos-$(date +%F).tgz ./photos
+```
+
+## Troubleshooting
+- 502 or app not loading
+  - Ensure all containers are healthy; check logs for DB connectivity
+- Poor AI performance
+  - Consider GPU-enabled deployments (see Immich docs) or increase resources
+
+## Security hardening checklist
+- Proxy with HTTPS and set a strong admin password
+- Restrict external access; prefer VPN for uploads
+- Regularly prune failed jobs and monitor disk usage
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./pg ./photos
+```
+
+## References
+- Immich docs: https://immich.app/docs/

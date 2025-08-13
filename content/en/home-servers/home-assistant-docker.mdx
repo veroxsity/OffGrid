@@ -13,6 +13,8 @@ lastUpdated: "2025-08-13"
 
 # Home Assistant with Docker
 
+> TL;DR: Run Home Assistant in host network mode for discovery, back up the `config` folder, and access the UI at 8123.
+
 ## Compose
 
 ```yaml
@@ -26,4 +28,30 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:8123` and follow onboarding.
+## Verification
+- Open `http://SERVER_IP:8123` and follow onboarding
+
+## Backups
+```bash
+sudo tar -czf /backups/home-assistant-$(date +%F).tgz ./config
+```
+
+## Troubleshooting
+- Devices not discovered
+  - Host networking is required for many discovery protocols; ensure it’s enabled and firewalls allow multicast
+- Corrupted config
+  - Use the built-in Config Validator; restore from backup
+
+## Security hardening checklist
+- Use long-lived access tokens and enable MFA for accounts
+- Put behind TLS if accessing remotely; prefer VPN
+- Limit add-ons and integrations to trusted sources
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./config
+```
+
+## References
+- Home Assistant docs: https://www.home-assistant.io/docs/

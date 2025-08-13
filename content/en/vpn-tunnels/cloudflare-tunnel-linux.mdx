@@ -3,7 +3,7 @@ title: "Cloudflare Tunnel on Linux (Expose Services Without Ports)"
 description: "Securely expose local services to the internet with Cloudflare Tunnel—no port forwarding."
 category: "VPN & Tunnels"
 difficulty: "Beginner"
-time: "15 minutes"
+time: "20 minutes"
 ukSpecific: false
 status: "published"
 tags: ["cloudflare","tunnel","argo","reverse-proxy","zero-trust"]
@@ -16,12 +16,21 @@ testedOn: ["Ubuntu 24.04", "Debian 12"]
 
 Use `cloudflared` to publish local services via Cloudflare’s edge.
 
+> TL;DR: Install cloudflared, authenticate, create a named tunnel, route a hostname, define ingress rules, install as a service, and verify. Add Zero Trust policies for auth.
+
+## Before you begin
+- Your domain is on Cloudflare and you can manage DNS
+- Decide which internal service to expose (e.g., http://localhost:8080)
+- Optional: use Cloudflare Zero Trust for access policies
+
 ## Install
 
 ```bash
 curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o cloudflared.deb
 sudo dpkg -i cloudflared.deb || sudo apt -f install -y
 ```
+
+What this does: Downloads and installs the latest cloudflared Debian package.
 
 ## Login and create a tunnel
 
@@ -30,11 +39,15 @@ cloudflared tunnel login
 cloudflared tunnel create homelab
 ```
 
+Expected: A browser prompts to authorize; a credentials JSON is created under `~/.cloudflared/`.
+
 ## Route a hostname
 
 ```bash
 cloudflared tunnel route dns homelab app.example.com
 ```
+
+What this does: Creates/updates a DNS record that points through the tunnel.
 
 ## Configure and run
 
@@ -53,8 +66,53 @@ sudo cloudflared service install
 sudo systemctl enable --now cloudflared
 ```
 
-## Tips
+## Verification
+- Open `https://app.example.com`; your local app should load through the tunnel.
+- Check service status: `systemctl status cloudflared --no-pager`.
 
-- Put multiple hosts under `ingress`.
-- Use Cloudflare Zero Trust policies for auth in front of apps.
-- If behind CGNAT, this avoids router changes entirely.
+## Troubleshooting
+- 502/Bad Gateway
+  - Ensure the local service is running and accessible on the defined port.
+- Hostname not resolving
+  - Confirm the DNS route was created and propagated on Cloudflare.
+- Auth errors
+  - Re-run `cloudflared tunnel login` and verify credentials JSON is referenced by `credentials-file`.
+
+Useful commands:
+```bash
+cloudflared tunnel list
+cloudflared tunnel info homelab
+journalctl -u cloudflared -n 200 --no-pager
+```
+
+## Security hardening checklist
+- Use Cloudflare Access policies (Zero Trust) to require login/2FA before reaching apps
+- Limit ingress to specific hostnames and paths; avoid catch-all without a 404 fallthrough
+- Rotate credentials and remove unused tunnels
+- Restrict the service user and file permissions under `/etc/cloudflared` and `~/.cloudflared`
+
+## Backups
+
+- Back up `/etc/cloudflared/config.yml` and the credentials JSON under `~/.cloudflared/`
+
+```bash
+sudo tar -czf /backups/cloudflared-$(date +%F).tgz /etc/cloudflared ~/.cloudflared
+```
+
+## Uninstall / rollback
+```bash
+sudo systemctl disable --now cloudflared
+sudo cloudflared service uninstall || true
+cloudflared tunnel delete homelab || true
+sudo rm -rf /etc/cloudflared ~/.cloudflared cloudflared.deb
+```
+
+## FAQ
+- Q: Can I expose multiple services?
+  - A: Yes; add more `ingress` entries with different hostnames.
+- Q: Works behind CGNAT?
+  - A: Yes; outbound-only connection from your server.
+
+## References
+- Cloudflare Tunnel docs: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/
+- cloudflared releases: https://github.com/cloudflare/cloudflared/releases

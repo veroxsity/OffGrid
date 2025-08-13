@@ -13,10 +13,15 @@ lastUpdated: "2025-08-13"
 
 # Jellyseerr (Media Requests) with Docker
 
+> TL;DR: Deploy Jellyseerr, connect it to Radarr/Sonarr, and optionally enable Jellyfin/Plex authentication.
+
+## Compose
+
 ```yaml
 services:
   jellyseerr:
     image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
     ports:
       - 5055:5055
     volumes:
@@ -24,4 +29,32 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:5055` and connect to Radarr/Sonarr.
+## Verification
+- Open `http://SERVER_IP:5055`
+- Settings → Services: add Radarr and Sonarr; test connections
+- Settings → Users: enable sign-in provider (Plex/Jellyfin) if desired
+
+## Backups
+```bash
+sudo tar -czf /backups/jellyseerr-$(date +%F).tgz ./config
+```
+What this does: Archives Jellyseerr application configuration for quick restore.
+
+## Troubleshooting
+- Cannot connect to Radarr/Sonarr
+  - Ensure network reachability from the Jellyseerr container to those services
+- Requests fail to import
+  - Check root folders and profiles in Radarr/Sonarr
+
+## Security hardening checklist
+- Put behind a reverse proxy with TLS and auth
+- Limit who can sign up/request content
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./config
+```
+
+## References
+- Jellyseerr docs: https://github.com/Fallenbagel/jellyseerr

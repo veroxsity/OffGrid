@@ -3,7 +3,7 @@ title: "Navidrome (Self-hosted Music) with Docker"
 description: "Stream your music collection to any device with Subsonic-compatible API."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "10 minutes"
+time: "15 minutes"
 ukSpecific: false
 status: "published"
 tags: ["navidrome","music","subsonic","docker"]
@@ -14,10 +14,15 @@ testedOn: ["Ubuntu 24.04", "Debian 12"]
 
 # Navidrome (Self-hosted Music) with Docker
 
+> TL;DR: Run Navidrome with a persistent data directory and a read-only music mount, create an admin, and scan your library. Put behind TLS.
+
+## Compose
+
 ```yaml
 services:
   navidrome:
     image: deluan/navidrome:latest
+    container_name: navidrome
     user: "1000:1000"
     ports:
       - "4533:4533"
@@ -30,4 +35,30 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:4533` → create admin → scan /music.
+## Verification
+- Open `http://SERVER_IP:4533` → create admin
+- Set Music Folder to `/music` and run a scan
+
+## Backups
+```bash
+sudo tar -czf /backups/navidrome-$(date +%F).tgz ./data
+```
+
+## Troubleshooting
+- Library not found
+  - Check that the host path `/srv/music` is correct and mounted read-only inside the container
+- Playback outside LAN
+  - Put behind a reverse proxy with TLS; configure external URL/base path if needed
+
+## Security hardening checklist
+- Don’t expose 4533 publicly; proxy with HTTPS and auth
+- Create per-user accounts; avoid sharing admin
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- Navidrome docs: https://www.navidrome.org/docs/

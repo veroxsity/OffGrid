@@ -13,10 +13,15 @@ lastUpdated: "2025-08-13"
 
 # Prowlarr with Docker
 
+> TL;DR: Deploy Prowlarr, add indexers, and sync them to Sonarr/Radarr via Applications so they stay in sync.
+
+## Compose
+
 ```yaml
 services:
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
     environment:
       - PUID=1000
       - PGID=1000
@@ -28,4 +33,32 @@ services:
     restart: unless-stopped
 ```
 
-Configure indexers and link to Sonarr/Radarr.
+## Verification
+- Open `http://SERVER_IP:9696`
+- Add indexers
+- Settings → Applications: Add Sonarr/Radarr to auto-sync indexers
+
+## Backups
+```bash
+sudo tar -czf /backups/prowlarr-$(date +%F).tgz ./config
+```
+What this does: Archives Prowlarr configuration (indexers, apps, settings) for fast recovery or migration.
+
+## Troubleshooting
+- Sync not working
+  - Check API keys in Sonarr/Radarr and container networking
+- Indexers failing
+  - Review indexer caps and required cookies/API keys
+
+## Security hardening checklist
+- Put behind a reverse proxy and don’t expose 9696 publicly
+- Use strong auth in Sonarr/Radarr and limit inbound IPs via proxy
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./config
+```
+
+## References
+- Prowlarr docs: https://wiki.servarr.com/

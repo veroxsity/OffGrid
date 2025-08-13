@@ -16,6 +16,8 @@ testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
 
 Sync folders across devices over LAN/Internet.
 
+> TL;DR: Start the container, open the web UI, pair devices by ID, share folders, and enable versioning. Forward 22000 TCP/UDP for WAN.
+
 ## Compose
 
 ```yaml
@@ -38,12 +40,31 @@ services:
     restart: unless-stopped
 ```
 
-Start and open `http://SERVER_IP:8384`.
-
-Add devices by ID, share folders, and approve.
+## Verification
+- Open `http://SERVER_IP:8384`, note your Device ID
+- Add a second device’s ID; approve pairing on both ends
+- Share a folder and watch it sync
 
 ## Notes
+- For WAN, forward 22000 TCP/UDP on your router (or use a VPN/Tailscale)
+- Back up `./config` and enable per-folder Versioning
 
-- For WAN use, forward 22000 TCP/UDP.
-- Back up `./config`.
-- Use versioning per-folder for safe rollbacks.
+## Troubleshooting
+- Can’t discover peers
+  - Ensure UDP 21027 is not blocked; check global discovery settings.
+- Slow sync
+  - Verify CPU/disk constraints; increase connections or adjust rate limits.
+
+## Security hardening checklist
+- Set `GUI Authentication User/Password` in the Syncthing UI
+- Restrict GUI to LAN; put behind a reverse proxy + auth if exposing
+- Use TLS for GUI if exposed; prefer VPN for remote access
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./config /srv/sync
+```
+
+## References
+- Syncthing docs: https://docs.syncthing.net/

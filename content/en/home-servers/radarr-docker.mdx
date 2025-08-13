@@ -13,10 +13,15 @@ lastUpdated: "2025-08-13"
 
 # Radarr with Docker
 
+> TL;DR: Run Radarr with correct volume mappings so it can see downloads and your movies library; add your download client and indexers.
+
+## Compose
+
 ```yaml
 services:
   radarr:
     image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
     environment:
       - PUID=1000
       - PGID=1000
@@ -30,4 +35,31 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:7878`.
+## Verification
+- Open `http://SERVER_IP:7878`
+- Add your download client and indexers
+
+## Backups
+```bash
+sudo tar -czf /backups/radarr-$(date +%F).tgz ./config
+```
+What this does: Archives Radarr’s configuration so you can restore settings after updates or migration.
+
+## Troubleshooting
+- Import fails
+  - Ensure the downloader and Radarr share the same host paths; otherwise use Remote Path Mapping.
+- Permission denied
+  - Align PUID/PGID and fix folder permissions.
+
+## Security hardening checklist
+- Put behind a reverse proxy with authentication and TLS
+- Do not expose 7878 to the internet
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./config
+```
+
+## References
+- Radarr docs: https://wiki.servarr.com/

@@ -19,6 +19,24 @@ prerequisites:
 
 Local, private DNS with built-in ad/tracker blocking and no third-party resolvers.
 
+> TL;DR: Bring up Pi-hole + Unbound with Compose, point Pi-hole upstream to 127.0.0.1#5335, set your LAN to use Pi-hole for DNS, verify with dig, and keep port 53 LAN-only.
+
+## Before you begin
+- Docker + Compose installed; host updated
+- Confirm ports 53 (TCP/UDP) and 80 are free on this host
+- Decide whether DHCP will hand out your DNS (router config) or per-device
+
+```bash
+sudo apt update && sudo apt -y install ca-certificates curl jq dnsutils
+```
+
+What this does: Installs tools used for DNS verification.
+
+## Security model and defaults
+- Keep DNS LAN-only; never expose port 53 to the internet
+- Password-protect the Pi-hole admin; restrict UI by firewall if needed
+- Use Unbound for privacy (no third-party upstreams); enable DNSSEC
+
 ## 1) Create project
 
 ```bash
@@ -62,13 +80,17 @@ Bring it up:
 docker compose up -d
 ```
 
+What this does: Starts Pi-hole (web UI on 80) and Unbound (recursive resolver), with port 53 exposed for LAN DNS.
+
 ## 3) Point Pi-hole to Unbound
 
 - Visit the admin UI: `http://SERVER_IP/admin` (password from `WEBPASSWORD`).
 - Settings → DNS → Upstream DNS Servers → Custom 1 (IPv4): `127.0.0.1#5335` (the mvance image listens on 5335).
 - Disable all public upstreams.
 
-## 4) Optional: Hardcode conditional forwarding (LAN hostnames)
+Also enable DNSSEC in Pi-hole (Settings → DNS → DNSSEC) for validation.
+
+## 4) Optional: Conditional forwarding
 
 Settings → DNS → Conditional Forwarding:
 - Local network: e.g., `192.168.1.0/24`
@@ -87,20 +109,64 @@ dig @SERVER_IP offgrid.freedom +short
 # Should resolve quickly
 
 dig @SERVER_IP google.com +short
+
+# DNSSEC validation example
+dig @SERVER_IP dnssec-failed.org +dnssec +multi
 ```
 
-Pi-hole Query Log should show hits; Unbound handles recursion.
+Expected: Normal domains resolve; `dnssec-failed.org` should indicate validation failures are caught by DNSSEC.
 
-## Security notes
+Check logs/UI:
+- Pi-hole Query Log shows requests and blocks
+- `docker compose logs -f unbound` for recursion activity
 
-- Don’t expose port 53 to the internet; keep it LAN-only.
-- Keep Pi-hole password strong.
-- Restrict admin UI to LAN by firewall if needed.
+## Backups
 
-## Maintenance
+- Backup `./etc-pihole` and `./etc-dnsmasq.d`
 
 ```bash
-docker compose pull && docker compose up -d
+sudo tar -czf /backups/pihole-$(date +%F).tgz ./etc-pihole ./etc-dnsmasq.d
 ```
 
-Update adlists in Pi-hole UI as desired.
+Restore example:
+
+```bash
+# Stop stack
+docker compose down
+# Restore config
+sudo tar -xzf /backups/pihole-YYYY-MM-DD.tgz -C .
+# Start
+docker compose up -d
+```
+
+## Troubleshooting
+
+- Clients still using ISP DNS
+  - Ensure router DHCP hands out your server IP as DNS; renew leases.
+- Admin UI not loading
+  - Check port 80 conflicts; verify container is healthy.
+- Queries time out
+  - Unbound not reachable or blocked; verify Pi-hole upstream set to 127.0.0.1#5335 and container depends_on.
+
+## Security hardening checklist
+- Restrict port 53 and 80 to LAN via firewall
+- Use long, unique admin password; disable admin from WAN
+- Keep blocklists curated; avoid malicious list sources
+
+## Uninstall / rollback
+
+```bash
+docker compose down
+# Optional: remove persisted data (ensure backups)
+sudo rm -rf ./etc-pihole ./etc-dnsmasq.d
+```
+
+## FAQ
+- Q: Do I need DNS-over-HTTPS/DoT if using Unbound?
+  - A: No. Unbound does recursion directly to root servers with validation; DoH/DoT aren’t necessary for privacy here.
+- Q: Can Pi-hole also do DHCP?
+  - A: Yes, Pi-hole can serve DHCP; disable your router’s DHCP first.
+
+## References
+- Pi-hole Docs: https://docs.pi-hole.net/
+- Unbound Docs: https://nlnetlabs.nl/documentation/unbound/

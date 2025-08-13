@@ -13,20 +13,15 @@ lastUpdated: "2025-08-13"
 
 # HedgeDoc (Collaborative Markdown) with Docker
 
+> TL;DR: Deploy Postgres + HedgeDoc, set `CMD_DOMAIN` to your public hostname, proxy with TLS, and back up the Postgres volume.
+
+## Compose
+
 ```yaml
 services:
-  hedgedoc:
-    image: quay.io/hedgedoc/hedgedoc:latest
-    environment:
-      - CMD_DOMAIN=notes.example.com
-      - CMD_DB_URL=postgres://hedgedoc:change-me@db:5432/hedgedoc
-    ports:
-      - "3002:3000"
-    depends_on:
-      - db
-    restart: unless-stopped
   db:
     image: postgres:16
+    container_name: hedgedoc-db
     environment:
       POSTGRES_PASSWORD: change-me
       POSTGRES_DB: hedgedoc
@@ -34,6 +29,46 @@ services:
     volumes:
       - ./pg:/var/lib/postgresql/data
     restart: unless-stopped
+
+  hedgedoc:
+    image: quay.io/hedgedoc/hedgedoc:latest
+    container_name: hedgedoc
+    environment:
+      - CMD_DOMAIN=notes.example.com
+      - CMD_DB_URL=postgres://hedgedoc:change-me@db:5432/hedgedoc
+      - CMD_PROTOCOL_USESSL=true
+    ports:
+      - "3002:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
 ```
 
-Reverse proxy to `notes.example.com`.
+## Verification
+- Proxy `https://notes.example.com` → `http://hedgedoc:3000`
+- Create a note and test real-time collaboration
+
+## Backups
+```bash
+# Dump Postgres
+docker exec -t hedgedoc-db pg_dump -U hedgedoc hedgedoc | gzip > backups/hedgedoc-$(date +%F).sql.gz
+```
+
+## Troubleshooting
+- 502 via proxy
+  - Ensure container is running and domain config matches
+- Cannot save notes
+  - Check DB URL and Postgres container health
+
+## Security hardening checklist
+- Enforce TLS at proxy; enable HSTS
+- Restrict signups or integrate SSO (OIDC) if exposing publicly
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./pg
+```
+
+## References
+- HedgeDoc docs: https://docs.hedgedoc.org/

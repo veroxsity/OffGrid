@@ -13,10 +13,15 @@ lastUpdated: "2025-08-13"
 
 # Sonarr with Docker
 
+> TL;DR: Deploy Sonarr with persistent config and correct volume mappings so it can see both your downloads and your library; then add indexers and a download client.
+
+## Compose
+
 ```yaml
 services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
     environment:
       - PUID=1000
       - PGID=1000
@@ -30,4 +35,34 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:8989` and add indexers and your download client.
+What this does: Ensures Sonarr can import from `/downloads` to your `/tv` library.
+
+## Verification
+- Open `http://SERVER_IP:8989`
+- Settings → Download Client: add qBittorrent/Transmission
+- Settings → Indexers: add via Jackett/Prowlarr or built-ins
+
+## Backups
+```bash
+sudo tar -czf /backups/sonarr-$(date +%F).tgz ./config
+```
+What this does: Archives Sonarr configuration for quick recovery or migration.
+
+## Troubleshooting
+- Import errors (path not found)
+  - Ensure the same host paths are mounted into both Sonarr and your downloader to avoid path mismatches.
+- Permissions issues
+  - Use matching PUID/PGID across media containers; set ACLs/permissions on host folders.
+
+## Security hardening checklist
+- Put the web UI behind a reverse proxy with auth and TLS
+- Avoid exposing port 8989 to the internet
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./config
+```
+
+## References
+- Sonarr docs: https://wiki.servarr.com/

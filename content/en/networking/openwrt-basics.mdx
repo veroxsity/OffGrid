@@ -16,6 +16,18 @@ testedOn: ["OpenWrt 23.05"]
 
 Modern, open firmware for supported routers.
 
+> TL;DR: Flash the correct OpenWrt image, set a strong root password, update packages, configure Wi‑Fi and DNS/DHCP, back up settings, and keep the router off the public internet.
+
+## Before you begin
+- Confirm your exact router model and hardware revision
+- Download both factory and sysupgrade images from openwrt.org
+- Use Ethernet, not Wi‑Fi, during flashing; avoid power loss
+
+## Security model and defaults
+- Change the root password immediately; disable remote admin from WAN
+- Keep the router on latest stable; apply updates carefully
+- Prefer WPA2/WPA3 with long random passphrases
+
 ## 1) Flash
 
 - Download the correct factory image from openwrt.org for your model.
@@ -30,20 +42,75 @@ Modern, open firmware for supported routers.
 opkg update && opkg list-upgradable | cut -f 1 -d ' ' | xargs -r opkg upgrade
 ```
 
+What this does: Updates package lists and upgrades any upgradable packages.
+
 ## 3) Wi‑Fi and SSID
 
 - Network → Wireless → set SSID, WPA2/3, strong passphrase.
+- Optional CLI example:
+
+```bash
+uci set wireless.@wifi-iface[0].ssid='HomeNet'
+uci set wireless.@wifi-iface[0].encryption='psk2+ccmp'
+uci set wireless.@wifi-iface[0].key='CHANGE_ME_LONG_RANDOM'
+uci commit wireless && wifi reload
+```
 
 ## 4) DNS and DHCP
 
 - To use Pi-hole: Network → DHCP and DNS → Upstream DNS: `192.168.1.2` (Pi-hole IP).
 - Static leases for servers: Network → DHCP and DNS → Static Leases.
+- Optional CLI:
+
+```bash
+uci add dhcp host
+uci set dhcp.@host[-1].name='fileserver'
+uci set dhcp.@host[-1].mac='AA:BB:CC:DD:EE:FF'
+uci set dhcp.@host[-1].ip='192.168.1.20'
+uci commit dhcp && /etc/init.d/dnsmasq restart
+```
 
 ## 5) Backup/restore
 
 - System → Backup / Flash Firmware → Generate archive.
 
-## Notes
+CLI:
+```bash
+sysupgrade -b /tmp/openwrt-backup-$(date +%F).tar.gz
+```
 
-- Prefer WPA2/WPA3 mixed for compatibility.
-- Keep router cool; poor thermals cause instability.
+Restore:
+```bash
+sysupgrade -r /path/to/openwrt-backup-YYYY-MM-DD.tar.gz
+```
+
+## Verify
+
+```bash
+# Router DNS/DHCP working
+logread -e dnsmasq | tail -n 50
+
+# Internet reachability
+ping -c 3 1.1.1.1
+```
+
+Expected: dnsmasq logs show leases/queries; ICMP replies indicate WAN connectivity.
+
+## Troubleshooting
+
+- No Wi‑Fi after flash
+  - Some devices ship Wi‑Fi disabled until country set; configure via Luci or `uci` and reload wifi.
+- Can’t reach LuCI
+  - Check LAN IP (default 192.168.1.1), ensure you’re on the same subnet, use Ethernet.
+- Packages fail to install
+  - Update package lists (`opkg update`); ensure correct architecture.
+
+## Security hardening checklist
+- Disable web admin from WAN (Firewall → Traffic Rules)
+- Change default SSH port and use keys; disable password auth
+- Keep backups off-router; validate restore works
+- Prefer WPA2/WPA3 with long random passphrases; hide WPS
+
+## References
+- OpenWrt Table of Hardware: https://openwrt.org/toh/start
+- OpenWrt Documentation: https://openwrt.org/docs/start

@@ -19,6 +19,8 @@ prerequisites:
 
 Get Docker Engine and the Compose plugin installed cleanly, add your user to the docker group, and verify with a quick test.
 
+> TL;DR: Add Docker’s official repo, install Engine + Compose plugin, enable the service, add your user to the docker group, and run `hello-world` + `docker compose version` to confirm.
+
 ## 1) Remove old Docker (if present)
 
 ```bash
@@ -74,7 +76,7 @@ sudo docker run --rm hello-world
 docker compose version
 ```
 
-If you see a version, you’re good. Use `docker compose` (space) rather than the old `docker-compose` binary.
+Expected: Both commands output versions; `hello-world` prints the Docker success message.
 
 ## 7) Optional: Tune storage driver and logs
 

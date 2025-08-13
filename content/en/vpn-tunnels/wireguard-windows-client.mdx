@@ -13,6 +13,8 @@ lastUpdated: "2025-08-13"
 
 # WireGuard Windows Client Configuration
 
+> TL;DR: Generate a client keypair, add the client as a [Peer] on the server, import the client config into WireGuard for Windows, activate, then verify reachability and DNS.
+
 ## Generate keys (server)
 
 ```bash
@@ -46,3 +48,39 @@ PersistentKeepalive = 25
 ```
 
 Import into WireGuard for Windows → Activate.
+
+## Verification
+- From Windows, check interface status in the WireGuard app (Handshake, Transfer).
+- Ping the server tunnel IP and a LAN host (if allowed):
+```powershell
+ping 10.8.0.1
+ping 192.168.1.10
+```
+- Confirm egress and DNS:
+```powershell
+nslookup example.com
+```
+Expected: Handshake recent, pings succeed, DNS resolves through configured server.
+
+## Troubleshooting
+- No handshake
+  - Server not reachable (port forward/UDP 51820); verify router and firewall.
+  - Wrong server public key/endpoint in client config.
+- Handshake OK, no traffic
+  - Server `AllowedIPs` missing client /32; ensure `[Peer] AllowedIPs = 10.8.0.3/32` on server.
+  - MTU issues: set `MTU = 1420` in both configs (lower on PPPoE).
+- DNS not working
+  - Ensure `DNS =` is set in client or server pushes DNS via split tunnel; confirm no local DNS override.
+
+## Security hardening
+- Keep client private key secure; don’t sync plaintext configs to cloud.
+- Use least-privilege routing: narrow `AllowedIPs` to required subnets instead of `0.0.0.0/0` if split tunnel is desired.
+- Rotate keys periodically and revoke lost devices by removing their `[Peer]` from the server.
+
+## Uninstall / remove tunnel
+- In WireGuard for Windows, remove or deactivate the tunnel profile.
+- On the server, remove the client’s `[Peer]` block and restart: `sudo systemctl restart wg-quick@wg0`.
+
+## References
+- WireGuard for Windows: https://www.wireguard.com/install/
+- wg-quick man page: https://manpages.debian.org/wg-quick

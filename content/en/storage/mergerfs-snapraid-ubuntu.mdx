@@ -3,46 +3,227 @@ title: "mergerfs + SnapRAID on Ubuntu"
 description: "JBOD pooling with parity protection using mergerfs and SnapRAID."
 category: "Storage"
 difficulty: "Advanced"
-time: "60 minutes"
+time: "90 minutes"
 ukSpecific: false
 status: "published"
-tags: ["mergerfs","snapraid","storage","parity","ubuntu"]
+tags: ["mergerfs","snapraid","storage","parity","ubuntu","jbod","raid"]
 author: "Off-Grid Freedom"
 lastUpdated: "2025-08-13"
 ---
 
 # mergerfs + SnapRAID on Ubuntu
 
-Pool different-size disks and add parity.
+Pool different-size disks into a single mount (mergerfs) and add parity protection (SnapRAID). Ideal for media libraries where capacity and bit-rot protection matter more than write performance.
 
-## Install
+> TL;DR: Mount disks individually, configure SnapRAID for parity + content files, layer mergerfs for a single pool with sensible create policies, schedule `snapraid sync` and `scrub`, and back up configs + content files.
+
+## Before you begin
+- Have each data disk mounted at a stable path (e.g., via UUID in `/etc/fstab`): `/mnt/disk1`, `/mnt/disk2`, etc.
+- Dedicate at least one disk for parity (must be as large as the largest data disk for a single parity).
+- This setup is not real-time RAID: changes are protected only after `snapraid sync`.
 
 ```bash
-sudo apt install -y mergerfs snapraid
+sudo apt update && sudo apt install -y mergerfs snapraid smartmontools
 ```
 
-## Configure SnapRAID
+What this does: Installs mergerfs and SnapRAID plus SMART tools for disk health checks.
 
-Edit `/etc/snapraid.conf` with your data and parity disks.
+## Security model and data integrity
+- SnapRAID provides parity against bit-rot and disk failure but is not a backup. Keep separate backups for critical data.
+- Use filesystem-level permissions on each disk; mergerfs preserves underlying ownership/ACLs.
+- Avoid running services that write frequently into the pool without tuning (e.g., databases). Use dedicated SSDs for app data.
+
+## 1) Prepare mount points and fstab entries
+
+Example for two data disks and one parity disk (replace UUIDs):
+
+```fstab
+# /etc/fstab
+UUID=xxxx-d1  /mnt/disk1  ext4  defaults,noatime  0  2
+UUID=xxxx-d2  /mnt/disk2  ext4  defaults,noatime  0  2
+UUID=xxxx-pr  /mnt/parity  ext4  defaults,noatime  0  2
+```
+
+Create directories and mount:
+
+```bash
+sudo mkdir -p /mnt/{disk1,disk2,parity,storage}
+sudo systemctl daemon-reload
+sudo mount -a
+```
+
+## 2) Configure SnapRAID
+
+Create `/etc/snapraid.conf`:
 
 ```conf
+# Parity and content files
 parity /mnt/parity/parity1
 content /mnt/disk1/snapraid.content
 content /mnt/disk2/snapraid.content
 
+# Data disks (names are arbitrary labels)
 data d1 /mnt/disk1
-data d2 /mnt/disk2
+ data d2 /mnt/disk2
 
+# Excludes
+exclude *.unrecoverable
+exclude /lost+found/
 exclude *.tmp
+exclude *.partial
 ```
 
-## Create mergerfs mount
+What this does: Defines where parity and content catalogs live and which paths are protected; excludes temp/system files.
+
+Initialize and dry-run:
 
 ```bash
-sudo mkdir -p /mnt/{disk1,disk2,storage}
-# Mount disks (via fstab in real setups)
-# Then:
-sudo mergerfs -o defaults,allow_other,use_ino,category.create=epmfs /mnt/disk* /mnt/storage
+sudo snapraid -e fix -p 1000 status || true
+sudo snapraid diff
 ```
 
-Schedule `snapraid sync` and `scrub` via cron/systemd.
+Expected: `diff` shows new files to be synced.
+
+Run initial sync:
+
+```bash
+sudo snapraid sync
+```
+
+## 3) Create the mergerfs pool
+
+Choose a create policy. `epmfs` (existing path, most free space) is a good default for media.
+
+```bash
+sudo mergerfs -o defaults,allow_other,use_ino,category.create=epmfs,minfreespace=100G /mnt/disk* /mnt/storage
+```
+
+Persist via `/etc/fstab`:
+
+```fstab
+# mergerfs pool
+/mnt/disk*  /mnt/storage  fuse.mergerfs  defaults,allow_other,use_ino,category.create=epmfs,minfreespace=100G  0  0
+```
+
+What this does: Presents a unified mount at `/mnt/storage` while writing new files to a disk that already contains the path and has free space.
+
+## 4) Verification
+
+```bash
+# Write test
+sudo -u "$USER" bash -c 'mkdir -p /mnt/storage/test && dd if=/dev/zero of=/mnt/storage/test/file.bin bs=1M count=128 status=none && ls -lh /mnt/storage/test'
+
+# Locate which disk holds the file
+sudo findmnt -T /mnt/storage/test/file.bin
+
+# SnapRAID status
+sudo snapraid status
+```
+
+Expected: File is written; `findmnt -T` points to one underlying disk; SnapRAID status shows unsynced changes until next `sync`.
+
+## 5) Scheduling sync and scrub
+
+Use systemd timers:
+
+```bash
+sudo tee /usr/local/bin/snapraid-sync.sh >/dev/null <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+snapraid -e fix diff || true
+snapraid sync
+snapraid scrub -p 10
+SH
+sudo chmod +x /usr/local/bin/snapraid-sync.sh
+
+sudo tee /etc/systemd/system/snapraid-sync.service >/dev/null <<'UNIT'
+[Unit]
+Description=SnapRAID sync + periodic scrub
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/snapraid-sync.sh
+UNIT
+
+sudo tee /etc/systemd/system/snapraid-sync.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Nightly SnapRAID sync
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=snapraid-sync.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+sudo systemctl enable --now snapraid-sync.timer
+```
+
+## Backups and configs to protect
+- Back up `/etc/snapraid.conf` and all `snapraid.content` files.
+- Back up media metadata if apps depend on it.
+
+```bash
+sudo tar -czf /backups/snapraid-config-$(date +%F).tgz /etc/snapraid.conf /mnt/disk1/snapraid.content /mnt/disk2/snapraid.content 2>/dev/null || true
+```
+
+## Troubleshooting
+- Pool path exists on some disks but not others
+  - Use `mkdir -p` across disks so mergerfs can place files predictably with `epmfs`.
+- SnapRAID reports missing/extra files
+  - Run `snapraid fix -d` cautiously; review `snapraid status` and the manual.
+- Low free space on one disk
+  - Adjust `minfreespace`; consider `mfs` policy to pick disk with most free space.
+- Performance issues
+  - Disable atime (`noatime`), ensure disks use appropriate schedulers, and network is not the bottleneck when accessing over SMB/NFS.
+
+Useful commands:
+```bash
+snapraid status
+snapraid -e fix diff
+snapraid scrub -p 10
+lsattr -R /mnt/storage | head
+```
+
+## Security hardening checklist
+- Use `allow_other` only if FUSE permissions are appropriate for your multi-user setup
+- Keep parity disk at least as large as the largest data disk; consider dual parity for larger arrays
+- Monitor SMART and set up email/alerting for failing disks
+- Regular scrubs; verify restores from backups, not just parity rebuilds
+- Consider mounting the pool with `nosuid,nodev,noexec` for untrusted media paths
+- Exclude temp/download caches from parity to reduce churn and sync time
+
+## Uninstall / rollback
+```bash
+# Stop services/timers
+sudo systemctl disable --now snapraid-sync.timer || true
+
+# Unmount pool
+sudo umount /mnt/storage || true
+
+# Remove fstab mergerfs entry and re-mount individual disks
+sudo sed -i '\|/mnt/disk\*\s\+/mnt/storage\s\+fuse.mergerfs|d' /etc/fstab
+sudo systemctl daemon-reload
+sudo mount -a
+
+# Remove packages (optional)
+sudo apt -y purge mergerfs snapraid
+```
+
+Warning: Destroying or reformatting any data disk without valid, recent backups can lead to permanent data loss. Always verify backups first.
+
+## FAQ
+- Q: Real-time protection?
+  - A: No. SnapRAID protects changes only after `sync`.
+- Q: Can I add disks later?
+  - A: Yes; add `data` lines to `snapraid.conf` and extend the mergerfs mount.
+- Q: What if a disk fails?
+  - A: Replace it and run `snapraid fix` to reconstruct from parity (if parity is up to date).
+
+## References
+- SnapRAID docs: https://www.snapraid.it/
+- mergerfs docs: https://github.com/trapexit/mergerfs
+- Arch Wiki — SnapRAID: https://wiki.archlinux.org/title/SnapRAID
+- Arch Wiki — mergerfs: https://wiki.archlinux.org/title/MergerFS

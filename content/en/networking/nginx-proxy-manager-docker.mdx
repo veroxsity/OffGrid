@@ -103,6 +103,17 @@ Expected: 301 from HTTP→HTTPS, and 200 from HTTPS with valid certificate.
 sudo tar -czf /backups/npm-$(date +%F).tgz data letsencrypt
 ```
 
+Restore example:
+
+```bash
+# Stop NPM first
+docker compose down
+# Restore archives into place (adjust path)
+sudo tar -xzf /backups/npm-YYYY-MM-DD.tgz -C .
+# Start NPM
+docker compose up -d
+```
+
 ## Troubleshooting
 - Cert fails: Ensure port 80 is reachable from the internet (HTTP-01)
 - 502 errors: Wrong upstream host/port; container may be down

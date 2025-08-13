@@ -16,6 +16,12 @@ testedOn: ["Ubuntu 24.04", "Debian 12"]
 
 Keep a stable hostname even when your UK ISP changes your IP.
 
+> TL;DR: Create a DuckDNS subdomain and token, install a tiny updater script, schedule with a systemd timer every 5 minutes, and verify logs in journalctl.
+
+## Before you begin
+- Sign up at duckdns.org and create a subdomain + token
+- If on IPv6, decide whether to publish AAAA records
+
 ## Script + systemd timer
 
 ```bash
@@ -32,7 +38,9 @@ SH
 sudo chmod +x /opt/duckdns/update.sh
 ```
 
-Timer:
+What this does: Calls DuckDNS update endpoint and appends response to a log file.
+
+Timer units:
 
 ```bash
 sudo tee /etc/systemd/system/duckdns.service >/dev/null <<'UNIT'
@@ -60,9 +68,41 @@ UNIT
 sudo systemctl enable --now duckdns.timer
 ```
 
-Check logs: `journalctl -u duckdns.service -e`.
+## Verification
 
-## Notes
+```bash
+systemctl status duckdns.timer --no-pager
+journalctl -u duckdns.service -n 5 --no-pager
+```
 
-- Pair with NPM or Cloudflare Tunnel for remote access.
-- Consider IPv6 if your ISP supports it.
+Expected: Recent successful updates; DuckDNS responds with `OK`.
+
+## Troubleshooting
+- Response not OK
+  - Verify DOMAIN and TOKEN; test with a manual curl.
+- Timer not running
+  - Check `systemctl list-timers`; ensure the timer is enabled.
+- IPv6 not updating
+  - Set `IPV6=true` and ensure the host has a global IPv6 address.
+
+## Security hardening checklist
+- Store `TOKEN` in a root-only file and source it from the script instead of hardcoding
+- Use minimal permissions on `/opt/duckdns` (root:root, 0750)
+- Limit update frequency to avoid rate-limits
+
+## Uninstall / rollback
+```bash
+sudo systemctl disable --now duckdns.timer
+sudo rm -f /etc/systemd/system/duckdns.{service,timer}
+sudo systemctl daemon-reload
+sudo rm -rf /opt/duckdns
+```
+
+## FAQ
+- Q: Can I update multiple domains?
+  - A: Yes; pass a comma-separated list to the `domains` parameter.
+- Q: Can I run this in Docker?
+  - A: You can, but a native systemd timer is simpler and lighter.
+
+## References
+- DuckDNS docs: https://www.duckdns.org/spec.jsp

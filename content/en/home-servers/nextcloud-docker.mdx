@@ -176,7 +176,7 @@ services:
       - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$10$$X5wbL7k.Qf9s6s5JHNmHu.5O5YHn5h5H5H5H5H5H5H5H5H5H5"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$10$$X5wbL7k.Qf9s6s5JHNmHu.5O5YHn5h5H5H5H5H5H5H5H5H5"
 
   db:
     image: postgres:15-alpine
@@ -386,6 +386,31 @@ chmod +x backup.sh
 crontab -e
 # Add: 0 2 * * * /path/to/backup.sh
 ```
+
+### Restore Procedure
+
+```bash
+# Stop the stack
+docker-compose down
+
+# Restore files
+mkdir -p ./data ./db
+sudo tar -xzf /home/backups/nextcloud/YYYY-MM-DD.tar.gz -C /home/backups/nextcloud
+rsync -a /home/backups/nextcloud/YYYY-MM-DD/data/ ./data/
+cp -r /home/backups/nextcloud/YYYY-MM-DD/config ./data/
+
+# Start DB and restore SQL
+docker-compose up -d db
+sleep 10
+cat /home/backups/nextcloud/YYYY-MM-DD/database.sql | docker-compose exec -T db psql -U nextcloud -d nextcloud
+
+# Start the rest
+docker-compose up -d
+```
+
+Notes:
+- Ensure ownership is correct: `sudo chown -R $USER:$USER ./data` (or container user if different).
+- If using object storage or external volumes, restore those according to their docs.
 
 ## Step 10: Mobile and Desktop Setup
 

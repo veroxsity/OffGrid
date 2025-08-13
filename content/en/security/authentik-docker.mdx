@@ -3,7 +3,7 @@ title: "authentik (SSO) with Docker"
 description: "Run authentik for OAuth/OIDC SSO; protect apps via reverse proxy."
 category: "Security"
 difficulty: "Advanced"
-time: "45 minutes"
+time: "60 minutes"
 ukSpecific: false
 status: "published"
 tags: ["authentik","sso","oidc","oauth","docker"]
@@ -14,6 +14,12 @@ lastUpdated: "2025-08-13"
 # authentik (SSO) with Docker
 
 Self-hosted SSO provider compatible with OIDC/OAuth2.
+
+> TL;DR: Deploy authentik with Postgres + Redis, finish setup at the web UI, create an Application + Provider (OIDC), then integrate with your reverse proxy or apps.
+
+## Before you begin
+- A domain and reverse proxy (NPM/Traefik) to expose authentik over HTTPS
+- Strong random `AUTHENTIK_SECRET_KEY` and database password
 
 ## Compose (PostgreSQL + Redis)
 
@@ -54,14 +60,76 @@ services:
     restart: unless-stopped
 ```
 
+Start the stack:
+
+```bash
+docker compose up -d
+```
+
+What this does: Starts PostgreSQL, Redis, and authentik; persists DB under ./pg and media under ./media.
+
 Open `https://SERVER_IP:9443` to finish setup.
 
 ## Protecting an app via OIDC
 
 - Create an Application + Provider (OIDC) in authentik.
-- In your reverse proxy, require auth via OIDC (e.g., with forward auth middlewares or native integrations).
+- In your reverse proxy, require auth via OIDC (e.g., forward auth middleware or native OIDC in your app).
 
-## Tips
+## Verification
+- Access the authentik UI over HTTPS and complete the initial admin setup.
+- Create a test application and ensure login/consent flows work, then receive a valid ID token at the client.
 
-- Put server behind NPM/Traefik with a public hostname.
-- Back up Postgres volume and `./media`.
+## Troubleshooting
+- Database connection errors
+  - Verify Postgres container is healthy and credentials match.
+- 502 or timeouts via proxy
+  - Check that the proxy targets the correct port (9000/9443) and TLS mode.
+- Invalid redirect URI
+  - Ensure the Provider has exact redirect URIs for your app.
+
+Useful commands:
+```bash
+docker compose logs -f server
+psql postgresql://authentik:change-me@localhost:5432/authentik -c '\l' || true
+```
+
+## Security hardening checklist
+- Move database and secret values to Docker secrets or env files not in VCS
+- Enforce HTTPS; use HSTS at the proxy
+- Back up the Postgres volume and `/media`; test restores
+- Restrict admin access to known IPs via proxy ACLs
+
+## Backups
+
+Create a backups folder, dump the Postgres DB, and archive media/templates. Optionally stop the web server briefly if you want a perfectly consistent media snapshot.
+
+```bash
+mkdir -p ./backups
+# Consistent logical DB dump
+docker compose exec -T postgresql pg_dump -U authentik -d authentik | gzip > ./backups/authentik-db-$(date +%F).sql.gz
+# Static assets
+tar -czf ./backups/authentik-media-$(date +%F).tar.gz -C ./media .
+tar -czf ./backups/authentik-templates-$(date +%F).tar.gz -C ./custom-templates . 2>/dev/null || true
+```
+
+Verification and restore (example):
+
+```bash
+ls -lh ./backups
+# Restore DB into the same container (mind downtime and app state)
+gunzip -c ./backups/authentik-db-YYYY-MM-DD.sql.gz | docker compose exec -T postgresql psql -U authentik -d authentik
+```
+
+Notes:
+- pg_dump is online-safe; for very busy instances consider maintenance windows.
+- Keep multiple generations and test restores in a lab before relying on them.
+
+## Uninstall / rollback
+```bash
+docker compose down
+rm -rf ./pg ./media ./custom-templates
+```
+
+## References
+- authentik docs: https://goauthentik.io/docs/
+- OIDC spec: https://openid.net/specs/openid-connect-core-1_0.html

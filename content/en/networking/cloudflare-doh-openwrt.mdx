@@ -13,6 +13,8 @@ lastUpdated: "2025-08-13"
 
 # Cloudflare DNS over HTTPS (DoH) on OpenWrt
 
+> TL;DR: Install https-dns-proxy, select Cloudflare in LuCI, ensure DHCP hands out the router as DNS, and verify with `nslookup` and packet captures.
+
 ## Install packages
 
 ```bash
@@ -21,9 +23,27 @@ opkg install https-dns-proxy luci-app-https-dns-proxy
 ```
 
 ## Configure
-
 - LuCI → Services → DNS over HTTPS
 - Provider: Cloudflare (1.1.1.1)
 - Enable and Apply
+- Network → DHCP and DNS: ensure “Ignore resolve file” is off (or configure appropriately) and your router serves as DNS
 
-Ensure DHCP hands out router as DNS to clients.
+## Verification
+```bash
+nslookup example.com 192.168.1.1
+```
+Expected: Answer comes from your router; DoH proxy shows as active in LuCI.
+
+## Troubleshooting
+- No DNS resolution
+  - Check WAN connectivity and DoH service status
+- Clients bypass router
+  - Enforce DNS via firewall rules or DHCP options
+
+## Security hardening checklist
+- Block outbound port 53 from LAN to prevent DNS bypass (optional)
+- Use DNSSEC validation if desired (via unbound/AdGuard Home)
+
+## References
+- OpenWrt DoH: https://openwrt.org/docs/guide-user/services/dns/doh
+- https-dns-proxy: https://github.com/openwrt/packages/tree/master/net/https-dns-proxy

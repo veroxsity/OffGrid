@@ -19,6 +19,24 @@ prerequisites:
 
 Free, open-source media server. Stream locally or via reverse proxy.
 
+> TL;DR: Launch Jellyfin with Docker, map your media read-only, verify the UI on port 8096, enable hardware acceleration (iGPU/NVIDIA), and front it with a reverse proxy for HTTPS. Back up `./config` regularly.
+
+## Before you begin
+- Docker + Compose installed; host up to date
+- Media folders organized (e.g., `/srv/media/movies`, `/srv/media/tv`)
+- Decide if access is LAN-only or via HTTPS reverse proxy (NPM/Traefik/Caddy)
+
+```bash
+sudo apt update && sudo apt -y install ca-certificates curl jq
+```
+
+What this does: Ensures minimal tooling for checks later.
+
+## Security model and defaults
+- Run Jellyfin as non-root, mount media read-only
+- Expose only 8096 internally; use a reverse proxy with TLS for WAN access
+- Do not publish 8096 directly to the internet; prefer VPN or proxy with auth
+
 ## 1) Compose file
 
 ```yaml
@@ -39,6 +57,8 @@ services:
     restart: unless-stopped
 ```
 
+What this does: Starts Jellyfin, persists configuration (`./config`, `./cache`), and mounts media read-only.
+
 Start:
 
 ```bash
@@ -48,29 +68,144 @@ docker compose up -d
 
 Visit `http://SERVER_IP:8096` to complete setup.
 
-## 2) Hardware acceleration
+## Verify deployment
 
-- Intel iGPU: add device `/dev/dri`:
+```bash
+# Show service
+docker compose ps
 
-```yaml
-    devices:
-      - "/dev/dri:/dev/dri"
+# Check logs for ready state
+docker compose logs --no-color --tail=200 jellyfin | sed -n '1,120p'
+
+# Port check (should return HTTP headers)
+curl -I http://SERVER_IP:8096 || true
 ```
 
-- NVIDIA: install host drivers + `--gpus all` (compose: `deploy.resources.reservations.devices`).
-- Enable hardware accel in Dashboard → Playback.
+Expected: Container is running, logs show server started, and HTTP 200/302 from the UI.
 
-## 3) Reverse proxy tips
+## 2) Hardware acceleration
+
+- Intel iGPU (VAAPI): ensure `/dev/dri` is passed and user has permissions
+
+```bash
+# Host: verify device and groups
+ls -l /dev/dri
+id
+
+# Add your user to render/video groups (log out/in after)
+sudo usermod -aG render,video $USER
+
+# Compose: mount the device
+# services.jellyfin.devices:
+#   - "/dev/dri:/dev/dri"
+```
+
+Enable in Jellyfin: Dashboard → Playback → Hardware acceleration → VAAPI → `/dev/dri/renderD128`.
+
+- NVIDIA (NVENC/VAAPI): install NVIDIA drivers + container toolkit
+
+```bash
+# Host: install NVIDIA Container Toolkit (Ubuntu)
+# Docs: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+
+# Compose device requests example
+# services:
+#   jellyfin:
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - capabilities: ["gpu"]
+```
+
+Enable in Jellyfin: Dashboard → Playback → Hardware acceleration → NVENC.
+
+Verify HW transcode: During playback, check `Playback` info shows (HWA) and logs include `ffmpeg` with `hwaccel`.
+
+## 3) Reverse proxy tips (HTTPS + WebSockets)
 
 - With Nginx Proxy Manager, forward to `http://jellyfin:8096` and enable WebSockets.
-- Set Jellyfin public base URL if using a subpath.
+- Generic Nginx example:
+
+```nginx
+server {
+  listen 443 ssl;
+  server_name media.example.com;
+  ssl_certificate     /etc/letsencrypt/live/media.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/media.example.com/privkey.pem;
+
+  location / {
+    proxy_pass http://127.0.0.1:8096;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+
+    # WebSockets
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+  }
+}
+```
+
+Set Jellyfin’s public base URL in Dashboard if using a subpath.
 
 ## 4) Backups
 
-- Backup `./config` regularly.
-- Library paths are read-only; keep media outside the container.
+- Back up `./config` and optionally `./cache` regularly.
+
+```bash
+cd ~/jellyfin
+sudo tar -czf /backups/jellyfin-config-$(date +%F).tgz ./config
+```
+
+What this does: Archives configuration for quick recovery.
 
 ## Troubleshooting
 
-- No transcoding: verify `/dev/dri` permissions or NVENC availability.
-- Remote buffering: use H264 for max compatibility; consider bitrate limits.
+- No transcoding (software only)
+  - Check `/dev/dri` permissions and group membership; ensure drivers present.
+- Playback buffering remotely
+  - Prefer H.264 for compatibility; limit bitrate; enable hardware transcode.
+- 502/404 via proxy
+  - Verify upstream URL and WebSocket headers; confirm container reachable from proxy network.
+- Library not scanning
+  - Check media paths and permissions; ensure mounts are correct and readable.
+
+Useful logs/commands:
+```bash
+docker compose logs --tail=200 jellyfin
+ss -tulpn | grep 8096 || true
+```
+
+## Security hardening checklist
+- Use strong admin password; disable guest access
+- Serve via HTTPS only; restrict WAN access with auth/IP allowlists
+- Keep Jellyfin and host packages updated
+
+## Uninstall / rollback
+
+```bash
+cd ~/jellyfin
+docker compose down
+# Optional: remove persistent data (ensure backups first)
+sudo rm -rf ./config ./cache
+```
+
+What this does: Stops the service and removes local state if desired.
+
+## FAQ
+- Q: How do I change the port?
+  - A: Edit the compose `ports` mapping, then `docker compose up -d`.
+- Q: Can I expose Jellyfin directly without a proxy?
+  - A: Not recommended. Prefer HTTPS via a reverse proxy or a VPN.
+- Q: How do I confirm hardware acceleration?
+  - A: Check the playback info (HWA) and logs for `hwaccel`; CPU usage should be lower during transcodes.
+- Q: How can I safely stream remotely?
+  - A: Prefer a VPN (WireGuard/Tailscale) or a reverse proxy with TLS and authentication. Avoid exposing 8096 publicly.
+
+## References
+- Jellyfin Docs: https://jellyfin.org/docs/
+- Hardware Acceleration: https://jellyfin.org/docs/general/administration/hardware-acceleration/
+- Reverse Proxy: https://jellyfin.org/docs/general/networking/reverse-proxy/

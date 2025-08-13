@@ -1,65 +1,86 @@
 ---
-title: "Tailscale on Ubuntu (Mesh VPN + Exit Node)"
-description: "Zero-config mesh VPN for your devices. Optional exit node and subnet routes."
+title: "Tailscale on Ubuntu"
+description: "Install and secure Tailscale on Ubuntu servers and desktops."
 category: "VPN & Tunnels"
 difficulty: "Beginner"
 time: "10 minutes"
 ukSpecific: false
 status: "published"
-tags: ["tailscale","vpn","mesh","ubuntu","exit-node"]
+tags: ["tailscale","ubuntu","vpn","wireguard"]
 author: "Off-Grid Freedom"
 lastUpdated: "2025-08-13"
-testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
-prerequisites:
-  - "Tailscale account (free tier is fine)"
-  - "Ubuntu server with internet access"
 ---
 
-# Tailscale on Ubuntu (Mesh VPN + Exit Node)
+# Tailscale on Ubuntu
 
-Instantly connect devices without opening ports.
+> TL;DR: Install the official Tailscale package, `tailscale up` with auth key or SSO, enable IP forwarding if routing, and restrict capabilities with `--ssh=false` (unless needed). Verify connectivity with `tailscale status` and `ping`.
 
-## Install
+## Prerequisites
+- Ubuntu 20.04/22.04 LTS
+- Sudo privileges
+- Optional: Tailscale auth key (for unattended setup)
 
+## Install Tailscale
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
+```
+What this does: Adds Tailscale apt repo and installs the `tailscale` package.
+
+## Bring the node online
+Interactive login:
+```bash
 sudo tailscale up
 ```
-
-Follow the link to authenticate.
-
-## Make this machine an exit node (optional)
-
+Unattended with auth key:
 ```bash
+sudo tailscale up --authkey tskey-xxxxx
+```
+What this does: Authenticates your device and joins your tailnet.
+
+## Optional: Exit node or subnet router
+Enable IP forwarding if advertising routes or exit node:
+```bash
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo sysctl -w net.ipv6.conf.all.forwarding=1
+```
+Persist:
+```bash
+echo 'net.ipv4.ip_forward=1' | sudo tee /etc/sysctl.d/99-tailscale.conf
+echo 'net.ipv6.conf.all.forwarding=1' | sudo tee -a /etc/sysctl.d/99-tailscale.conf
+sudo sysctl --system
+```
+Advertise routes or exit node:
+```bash
+sudo tailscale up --advertise-routes=192.168.1.0/24
+# or
 sudo tailscale up --advertise-exit-node
 ```
 
-Approve in the Tailscale admin console (Machines → this node → Enable exit node).
-
-## Advertise a subnet (site-to-site)
-
+## Verification
 ```bash
-# Example: advertise your LAN 192.168.1.0/24
-sudo tailscale up --advertise-routes=192.168.1.0/24
+tailscale status
+ping -c 3 <peer-ip>
+```
+Expected outcome: Your node shows “connected”; you can ping peers over Tailscale.
+
+## Troubleshooting
+- tailscaled not running: `sudo systemctl status tailscaled`; start with `sudo systemctl enable --now tailscaled`
+- Firewall blocking: allow UDP/DERP; on ufw `sudo ufw allow 41641/udp`
+- DNS not working: check MagicDNS settings and `tailscale up --accept-dns=true`
+
+## Security hardening
+- Disable SSH feature unless required: `sudo tailscale up --ssh=false`
+- Restrict ACLs in tailnet policy to least privilege
+- Keep the device key “ephemeral” for untrusted hosts
+
+## Uninstall
+```bash
+sudo tailscale logout
+sudo apt purge tailscale -y
+sudo rm -f /etc/sysctl.d/99-tailscale.conf
+sudo sysctl --system
 ```
 
-Approve the route in the admin console. Clients can then enable it from their UI.
-
-## Useful commands
-
-```bash
-# Status and peers
-sudo tailscale status
-
-# Force key refresh
-sudo tailscale cert --renew
-
-# Start at boot
-sudo systemctl enable --now tailscaled
-```
-
-## Notes
-
-- No router port forwarding required.
-- Use ACLs to restrict who can access what.
-- For DNS, enable MagicDNS in the admin console.
+## References
+- Official install: https://tailscale.com/download/linux/ubuntu
+- Admin guides: https://tailscale.com/kb

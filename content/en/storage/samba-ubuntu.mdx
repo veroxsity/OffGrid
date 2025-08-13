@@ -122,6 +122,12 @@ smbclient -L localhost -U "$USER"
 
 Expected: You should see PublicShare listed. If prompted, enter the SMB password you set with smbpasswd.
 
+Check listeners and firewall:
+```bash
+ss -tulpn | grep -E ':445|:139' || sudo netstat -tulpn | grep -E ':445|:139'
+sudo ufw status numbered | sed -n '1,200p'
+```
+
 ## 5) Connect from clients
 
 - Windows: File Explorer → \\SERVER_IP\PublicShare, authenticate with the Linux user and your SMB password.
@@ -137,7 +143,19 @@ Tip (Windows): If name resolution fails, connect via IP. Ensure “Network Disco
 sudo tar -czf /backups/samba-$(date +%F).tgz /etc/samba/smb.conf /srv/share
 ```
 
-What this does: Archives the share data and configuration with a date stamp.
+Restore example:
+```bash
+# Stop services
+sudo systemctl stop smbd nmbd
+# Restore config and data
+sudo tar -xzf /backups/samba-YYYY-MM-DD.tgz -C /
+# Fix ownership if needed
+sudo chown -R $USER:$USER /srv/share
+# Start services
+sudo systemctl start smbd nmbd
+```
+
+What this does: Archives/restores config and data with minimal downtime.
 
 ## Troubleshooting
 

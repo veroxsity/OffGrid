@@ -3,7 +3,7 @@ title: "Authelia 2FA SSO behind Nginx Proxy Manager (Docker)"
 description: "Protect apps with SSO and 2FA using Authelia behind NPM as a forward auth provider."
 category: "Security"
 difficulty: "Advanced"
-time: "45 minutes"
+time: "60 minutes"
 ukSpecific: false
 status: "published"
 tags: ["authelia","sso","2fa","nginx-proxy-manager","security","docker"]
@@ -14,13 +14,22 @@ testedOn: ["Ubuntu 24.04"]
 
 # Authelia 2FA SSO behind Nginx Proxy Manager (Docker)
 
-Use Authelia to add login + 2FA in front of internal apps.
+Use Authelia to add login + 2FA in front of internal apps while keeping NPM as your reverse proxy.
+
+> TL;DR: Deploy Authelia via Docker, configure file-based users, create a Forward Auth access list in NPM pointing to Authelia’s verify API, add a public `auth.example.com` host, then apply the access list to apps you want protected.
+
+## Before you begin
+- NPM is already running with valid TLS (Let’s Encrypt) and DNS entries
+- Choose a domain (e.g., example.com) and ensure DNS works externally to NPM
+- Prepare a strong random secret for JWT/session/encryption keys
 
 ## 1) Folders
 
 ```bash
 mkdir -p ~/authelia/{config,secrets}
-``` 
+```
+
+What this does: Creates directories for configuration and secrets.
 
 ## 2) docker-compose.yaml
 
@@ -38,6 +47,8 @@ services:
       - "9091:9091"
     restart: unless-stopped
 ```
+
+What this does: Runs Authelia and exposes port 9091 locally for NPM to reach.
 
 ## 3) Configuration
 
@@ -84,6 +95,16 @@ users:
     email: user@example.com
 ```
 
+What this does: Configures Authelia with local storage, file-based users, and two_factor as default policy for your domain.
+
+Start the stack:
+
+```bash
+docker compose up -d
+```
+
+What this does: Launches Authelia bound to 9091; persists config at ./config and secrets at ./secrets for NPM to reach.
+
 ## 4) NPM Forward Auth
 
 In NPM → Access Lists → Add Authorization → Forward Auth:
@@ -93,12 +114,81 @@ In NPM → Access Lists → Add Authorization → Forward Auth:
 
 Apply this Access List to any Proxy Host you wish to protect.
 
-## 5) DNS
+## 5) DNS and Proxy Host for Authelia
 
-- Create `auth.example.com` pointing to NPM.
-- In NPM, create a Proxy Host for `auth.example.com` → forward to `http://authelia:9091` and enable SSL.
+- Create `auth.example.com` pointing to your NPM server.
+- In NPM, create a Proxy Host for `auth.example.com` → forward to `http://authelia:9091` and enable SSL (Request new certificate; Force SSL; HTTP/2).
 
-## Tips
+## 6) Verification
 
-- Use an SMTP notifier for emails.
-- Move secrets to `./secrets` and reference via environment vars in config.
+- Visit a protected app host. You should be redirected to `auth.example.com` to authenticate and enroll 2FA.
+- After login and 2FA, you’re redirected back with access granted.
+
+Expected: HTTP 401 becomes 302 to Authelia; after auth, app loads behind NPM with an auth cookie set.
+
+## Troubleshooting
+- Infinite redirect or 401
+  - Check cookie domain in `session.domain` matches your base domain.
+  - Confirm NPM can resolve `authelia` container hostname or use `http://SERVER_IP:9091`.
+- 502 Bad Gateway in NPM
+  - Ensure Authelia container is running and exposed; verify port mapping.
+- TOTP not accepted
+  - Check server time drift; use NTP and correct timezone.
+- Password hash format
+  - Generate using `authelia hash-password` inside the container.
+
+Useful commands:
+```bash
+docker compose logs -f authelia
+curl -i http://localhost:9091/api/verify
+```
+
+## Security hardening checklist
+- Use strong random secrets and rotate periodically
+- Move secrets to Docker secrets or environment files; avoid committing to VCS
+- Limit Access Control rules by subdomain and method where needed
+- Use SMTP notifier for real emails; avoid filesystem notifier in production
+- Put NPM behind a firewall; rate-limit external access
+
+## Backups
+
+Back up Authelia’s config (YAML, users) and state DB file.
+
+```bash
+mkdir -p ./backups
+# Config and users
+tar -czf ./backups/authelia-config-$(date +%F).tar.gz -C ./config .
+# SQLite state (quiesce by stopping briefly or copy-on-write filesystem)
+docker compose stop authelia
+cp ./config/db.sqlite3 ./backups/authelia-db-$(date +%F).sqlite3
+docker compose start authelia
+```
+
+Restore example:
+
+```bash
+# Replace config and DB, then restart
+tar -xzf ./backups/authelia-config-YYYY-MM-DD.tar.gz -C ./config
+cp ./backups/authelia-db-YYYY-MM-DD.sqlite3 ./config/db.sqlite3
+docker compose up -d
+```
+
+Notes:
+- If using an external DB or notifier, back those up according to their docs.
+- Keep backups encrypted at rest; include secrets if not stored elsewhere.
+
+## Uninstall / rollback
+```bash
+docker compose down
+rm -rf ~/authelia
+```
+
+## FAQ
+- Q: Can I integrate LDAP?
+  - A: Yes; switch `authentication_backend` to LDAP.
+- Q: Do I need OIDC?
+  - A: Optional; useful for app-to-app SSO.
+
+## References
+- Authelia docs: https://www.authelia.com/
+- NPM docs: https://nginxproxymanager.com/

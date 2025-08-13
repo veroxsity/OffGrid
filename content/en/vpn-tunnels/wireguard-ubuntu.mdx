@@ -231,195 +231,26 @@ nmap -sU -p 51820 YOUR.PUBLIC.IP
 
 Expected: Port 51820/udp shows open|filtered (many routers report this), which is acceptable. A full test is to connect a client and run traffic.
 
-## Step 10: Client Setup
+## Backups
 
-### Android/iOS
-1. Install WireGuard app
-2. Scan QR code or import config file
-3. Enable connection
+- Back up `/etc/wireguard/wg0.conf` and private/public keys under `/etc/wireguard/`
 
-### Windows/Mac/Linux
-1. Install WireGuard client
-2. Import `client1.conf`
-3. Activate tunnel
-
-## UK-Specific Troubleshooting
-
-### Dynamic IP Issues
-Most UK ISPs provide dynamic IPs. Solutions:
-- Use Dynamic DNS (DuckDNS, No-IP)
-- Check IP regularly: `curl ifconfig.me`
-
-### CGNAT Problems (Three, some Virgin areas)
-If you're behind CGNAT:
-- Contact ISP for static IP (£5-10/month)
-- Use reverse tunnel (Cloudflare Tunnel)
-- Consider VPS with WireGuard
-
-### Port 51820 Blocked
-Some ISPs block common VPN ports:
-- Change to port 443: `ListenPort = 443`
-- Try port 53: `ListenPort = 53`
-- Update firewall and router accordingly
-
-## Security Hardening
-
-### Disable Password SSH
 ```bash
-sudo nano /etc/ssh/sshd_config
-# Set: PasswordAuthentication no
-sudo systemctl restart ssh
-```
-
-### Key Rotation
-Rotate keys monthly:
-```bash
-sudo systemctl stop wg-quick@wg0
-# Generate new keys
-# Update configs
-sudo systemctl start wg-quick@wg0
-```
-
-### Monitor Connections
-```bash
-# Check active peers
-sudo wg show
-
-# Monitor logs
-sudo journalctl -f -u wg-quick@wg0
-```
-
-## Performance Tuning
-
-### For Gigabit Connections
-```bash
-# Increase network buffers
-echo 'net.core.rmem_max = 134217728' | sudo tee -a /etc/sysctl.conf
-echo 'net.core.wmem_max = 134217728' | sudo tee -a /etc/sysctl.conf
-sudo sysctl -p
-```
-
-### Multiple CPU Cores
-```bash
-# Enable receive packet steering
-echo 'net.core.rps_sock_flow_entries = 32768' | sudo tee -a /etc/sysctl.conf
-```
-
-## Testing Your VPN
-
-### Check IP Address
-```bash
-# Before connecting
-curl ifconfig.me
-
-# After connecting
-curl ifconfig.me
-```
-
-Should show your server's IP, not your ISP's.
-
-### Speed Test
-```bash
-# Test without VPN
-speedtest-cli
-
-# Test with VPN
-speedtest-cli
-```
-
-### DNS Leak Test
-Visit: `dnsleaktest.com`
-
-Should show Cloudflare DNS (1.1.1.1), not your ISP's DNS.
-
-## Common UK ISP Issues
-
-### BT: Port Blocking
-BT blocks some ports by default:
-- Avoid ports 25, 135, 445
-- Use 51820 or 443
-
-### Virgin: Upload Throttling  
-Virgin throttles uploads after sustained usage:
-- Monitor with `vnstat`
-- Consider traffic shaping
-
-### Sky: Firewall Interference
-Sky Shield can interfere:
-- Disable Sky Shield
-- Use custom DNS in router
-
-## Maintenance
-
-### Weekly Tasks
-```bash
-# Check for updates
-sudo apt update && sudo apt upgrade
-
-# Monitor disk space
-df -h
-
-# Check logs for issues
-sudo journalctl -u wg-quick@wg0 --since yesterday
-```
-
-### Monthly Tasks
-- Rotate WireGuard keys
-- Review connected clients
-- Update client configurations
-
-## Troubleshooting
-
-### Connection Fails
-```bash
-# Check WireGuard status
-sudo wg show
-
-# Check if port is listening
-sudo ss -tulpn | grep 51820
-
-# Test from outside network
-nmap -sU -p 51820 [YOUR_PUBLIC_IP]
-```
-
-### Slow Speeds
-1. Check MTU settings: Try `MTU = 1280` in client config
-2. Verify CPU usage: `top`
-3. Test direct connection speed
-
-### Can't Access Local Network
-Add to client `AllowedIPs`:
-```ini
-AllowedIPs = 0.0.0.0/0, 192.168.1.0/24
+sudo tar -czf ~/wg-backup-$(date +%F).tgz -C /etc wireguard
 ```
 
 ## Uninstall / rollback
 
 ```bash
-# Disable and stop the interface
 sudo systemctl disable --now wg-quick@wg0
-
-# Remove package (Ubuntu)
 sudo apt -y purge wireguard wireguard-tools
-
-# Remove configuration (make a backup first!)
-sudo rm -f /etc/wireguard/wg0.conf /etc/wireguard/server_private.key /etc/wireguard/server_public.key
+sudo rm -f /etc/wireguard/wg0.conf /etc/wireguard/*_private.key /etc/wireguard/*_public.key
 ```
-
-What this does: Stops the VPN, removes packages, and deletes keys/config. Ensure you have backups of any peer configs.
-
-## FAQ
-- Q: How do I change the port from 51820?
-  - A: Update `ListenPort` in `/etc/wireguard/wg0.conf`, adjust firewall and router port-forward, then `sudo systemctl restart wg-quick@wg0`.
-- Q: Can I use a domain instead of an IP for Endpoint?
-  - A: Yes, set `Endpoint = vpn.example.com:51820` and keep DNS updated (use DDNS if IP changes).
-- Q: Multiple clients?
-  - A: Allocate unique keys and /32 IPs per peer (e.g., 10.8.0.2/32, 10.8.0.3/32) and add a [Peer] block per client on the server.
 
 ## References
 - WireGuard docs: https://www.wireguard.com/
 - wg-quick man page: https://manpages.debian.org/wg-quick
-- Our UK Port Forwarding guide: ../networking/uk-port-forwarding
+- UK Port Forwarding: ../networking/uk-port-forwarding
 
 ---
 

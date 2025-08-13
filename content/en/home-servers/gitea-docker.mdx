@@ -13,17 +13,75 @@ lastUpdated: "2025-08-13"
 
 # Gitea (Git hosting) with Docker
 
+> TL;DR: Run Gitea with a persistent data volume, expose HTTP and SSH, set `ROOT_URL` behind your reverse proxy, complete the setup wizard, then disable open registrations and back up `/data`.
+
+## Before you begin
+- Decide your public URL (e.g., https://git.example.com) and reverse proxy it with TLS
+- Pick external SSH port (e.g., 222) to map to container 22
+
+## Compose
+
 ```yaml
 services:
   gitea:
     image: gitea/gitea:latest
+    container_name: gitea
     user: "1000:1000"
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__ROOT_URL=https://git.example.com/
+      - GITEA__server__SSH_DOMAIN=git.example.com
+      - GITEA__server__SSH_PORT=222
+      - GITEA__server__OFFLINE_MODE=true
+      - TZ=Europe/London
     ports:
-      - "3000:3000"
-      - "222:22"
+      - "3000:3000"   # HTTP (proxy this with TLS)
+      - "222:22"      # SSH (git clone via ssh)
     volumes:
       - ./data:/data
     restart: unless-stopped
 ```
 
-Visit `http://SERVER_IP:3000` to initialize.
+What this does: Persists all state in `./data`, exposes web on 3000 and SSH on 222, and sets URLs so clone links are correct.
+
+## Verification
+- Open `http://SERVER_IP:3000` (or via your proxy URL) and complete the install wizard
+  - Database: SQLite (default) or external Postgres
+  - Application URL: `https://git.example.com/`
+  - SSH server domain/port: `git.example.com:222`
+- Create the first admin user
+
+## Reverse proxy (NPM/Traefik)
+- Proxy `git.example.com` → `http://gitea:3000`, enable SSL, WebSocket support
+- Optionally expose SSH 222 directly from host/network
+
+## Backups
+```bash
+sudo tar -czf /backups/gitea-$(date +%F).tgz ./data
+```
+Includes repos, avatars, config, and SQLite DB (if used). For Postgres, back up DB separately.
+
+## Troubleshooting
+- Wrong clone URLs
+  - Fix `GITEA__server__ROOT_URL` and `SSH_*` settings, then restart
+- SSH fails
+  - Verify host firewall allows 222/tcp and port mapping is correct
+- 502 via proxy
+  - Ensure container is healthy and proxy points to 3000
+
+## Security hardening checklist
+- Disable open registration (Site Admin → Authentication → Disable Self-Registration)
+- Enforce TLS at the proxy and set HSTS
+- Require 2FA for users; use SSH keys for Git operations
+- Restrict admin endpoints via proxy ACLs
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- Gitea docs: https://docs.gitea.com/
+- App.ini configuration: https://docs.gitea.com/administration/config-cheat-sheet

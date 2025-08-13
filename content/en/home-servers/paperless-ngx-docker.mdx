@@ -3,7 +3,7 @@ title: "Paperless-ngx (Document Management) with Docker"
 description: "Scan, OCR, and organize documents locally with Paperless-ngx."
 category: "Home Servers"
 difficulty: "Intermediate"
-time: "25 minutes"
+time: "30 minutes"
 ukSpecific: false
 status: "published"
 tags: ["paperless-ngx","ocr","documents","docker"]
@@ -13,16 +13,20 @@ lastUpdated: "2025-08-13"
 
 # Paperless-ngx (Document Management) with Docker
 
+> TL;DR: Deploy Redis + Paperless-ngx, persist `data` and `media`, drop files into `consume`, create an admin, configure OCR languages, and back up volumes.
+
 ## Compose
 
 ```yaml
 services:
   broker:
     image: redis:7-alpine
+    container_name: paperless-redis
     restart: unless-stopped
 
   webserver:
     image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
     depends_on:
       - broker
     ports:
@@ -34,7 +38,39 @@ services:
     environment:
       - PAPERLESS_REDIS=redis://broker:6379
       - PAPERLESS_SECRET_KEY=change-me-random
+      - PAPERLESS_OCR_LANGUAGE=eng
+      - USERMAP_UID=1000
+      - USERMAP_GID=1000
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:8000` → create admin → drop PDFs into `./consume`.
+What this does: Runs Paperless-ngx with Redis as a broker and persistent volumes for data/media.
+
+## Verification
+- Open `http://SERVER_IP:8000` and create an admin
+- Copy a PDF into `./consume` and watch it appear in the UI after processing
+
+## Backups
+```bash
+sudo tar -czf /backups/paperless-$(date +%F).tgz ./data ./media
+```
+
+## Troubleshooting
+- Files not processing
+  - Check worker logs in the container; verify Redis connectivity
+- OCR language
+  - Install additional Tesseract langs or set `PAPERLESS_OCR_LANGUAGE` accordingly
+
+## Security hardening checklist
+- Put behind a reverse proxy with TLS and auth
+- Limit who can access the instance
+- Keep up-to-date and prune old media previews if space is tight
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data ./media ./consume
+```
+
+## References
+- Paperless-ngx docs: https://docs.paperless-ngx.com/

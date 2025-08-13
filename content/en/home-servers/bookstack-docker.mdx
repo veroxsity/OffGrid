@@ -3,7 +3,7 @@ title: "BookStack (Wiki) with Docker"
 description: "Self-hosted documentation/wiki platform for teams."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "15 minutes"
+time: "20 minutes"
 ukSpecific: false
 status: "published"
 tags: ["bookstack","wiki","docs","docker"]
@@ -13,10 +13,19 @@ lastUpdated: "2025-08-13"
 
 # BookStack (Wiki) with Docker
 
+> TL;DR: Run MariaDB + BookStack, set `APP_URL` to your domain, reverse proxy with TLS, complete the installer, and back up the DB and `config` volume.
+
+## Before you begin
+- Choose a domain (e.g., wiki.example.com) and plan to proxy with HTTPS
+- Generate strong DB credentials
+
+## Compose
+
 ```yaml
 services:
   db:
     image: mariadb:11
+    container_name: bookstack-db
     environment:
       MARIADB_ROOT_PASSWORD: change-me
       MARIADB_DATABASE: bookstack
@@ -28,11 +37,15 @@ services:
 
   app:
     image: linuxserver/bookstack
+    container_name: bookstack
     environment:
+      - PUID=1000
+      - PGID=1000
       - DB_HOST=db
       - DB_USER=bookstack
       - DB_PASS=change-me
       - DB_DATABASE=bookstack
+      - APP_URL=https://wiki.example.com
     ports:
       - "6875:80"
     volumes:
@@ -42,4 +55,38 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:6875`.
+What this does: Runs MariaDB with persistent storage and BookStack with persistent config/uploads.
+
+## Verification
+- Open `http://SERVER_IP:6875` (or your proxy URL) and complete the setup
+- Create the first admin user and log in
+
+## Backups
+```bash
+# DB dump + config archive
+docker exec -t bookstack-db mysqldump -u root -pchange-me bookstack | gzip > backups/bookstack-db-$(date +%F).sql.gz
+sudo tar -czf backups/bookstack-config-$(date +%F).tgz ./config
+```
+
+## Troubleshooting
+- 502 via proxy
+  - Ensure container is healthy and proxy forwards to port 80 of `bookstack`
+- Login or CSRF issues
+  - Confirm `APP_URL` matches your public URL and TLS
+- Database connection failed
+  - Verify DB env vars and that `db` service is up
+
+## Security hardening checklist
+- Put behind TLS and enable HSTS at the proxy
+- Restrict public registration; use role-based permissions
+- Regularly back up DB and uploaded files
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./mariadb ./config
+```
+
+## References
+- BookStack docs: https://www.bookstackapp.com/docs/
+- LinuxServer.io image: https://docs.linuxserver.io/images/docker-bookstack

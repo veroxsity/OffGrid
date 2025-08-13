@@ -13,10 +13,32 @@ lastUpdated: "2025-08-13"
 
 # PostgreSQL in Docker: Backup and Restore
 
+Reliable logical backups with pg_dump/pg_restore; notes on WAL/PITR.
+
+> TL;DR: Use `pg_dump` piping to gzip for logical backups, restore with `psql`/`pg_restore`, verify with a test container, and consider WAL archiving for PITR. Store backups off-host.
+
+## Before you begin
+- Dockerized PostgreSQL running (container name here: `postgres`)
+- Database name and credentials (e.g., `-U postgres -d mydb`)
+- Sufficient disk space for compressed dumps
+
+```bash
+sudo apt update && sudo apt -y install postgresql-client gzip
+```
+
+What this does: Installs the client tools used to dump/restore from outside the container.
+
 ## One-off backup
 
 ```bash
 docker exec -t postgres pg_dump -U postgres -d mydb | gzip > backup.sql.gz
+```
+
+What this does: Runs `pg_dump` inside the container and compresses the SQL dump on the host.
+
+For custom-format dump (parallel restore capable):
+```bash
+docker exec -t postgres pg_dump -U postgres -d mydb -Fc > backup.dump
 ```
 
 ## Restore
@@ -25,7 +47,81 @@ docker exec -t postgres pg_dump -U postgres -d mydb | gzip > backup.sql.gz
 gunzip -c backup.sql.gz | docker exec -i postgres psql -U postgres -d mydb
 ```
 
+Custom-format restore with parallel jobs:
+```bash
+docker cp backup.dump postgres:/tmp/backup.dump
+docker exec -it postgres pg_restore -U postgres -d mydb -j 4 /tmp/backup.dump
+```
+
+## Verify the backup
+
+Spin up a temporary test container and restore to validate:
+```bash
+docker run --rm --name pg-verify -e POSTGRES_PASSWORD=test -d postgres:15
+sleep 5
+docker exec -i pg-verify psql -U postgres -c 'CREATE DATABASE verify;'
+
+gunzip -c backup.sql.gz | docker exec -i pg-verify psql -U postgres -d verify
+
+docker exec -i pg-verify psql -U postgres -d verify -c '\dt'
+docker rm -f pg-verify
+```
+
+## Scheduled backups (cron)
+
+Example backup script `pg-backup.sh`:
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+TS=$(date +%F-%H%M)
+DB=mydb
+CONTAINER=postgres
+OUT=/backups/postgres
+mkdir -p "$OUT"
+
+docker exec -t "$CONTAINER" pg_dump -U postgres -d "$DB" | gzip > "$OUT/$DB-$TS.sql.gz"
+find "$OUT" -type f -name "$DB-*.sql.gz" -mtime +14 -delete
+```
+
+Make executable and add cron:
+```bash
+chmod +x pg-backup.sh
+(crontab -l 2>/dev/null; echo "0 2 * * * /path/pg-backup.sh") | crontab -
+```
+
 ## WAL archiving (advanced)
 
 - Mount `/var/lib/postgresql/data/pg_wal` and configure `archive_mode=on` and `archive_command` in `postgresql.conf`.
-- Point to a safe archive directory or object storage (e.g., MinIO) for PITR.
+- Archive to durable storage (e.g., MinIO/S3) for point-in-time recovery.
+
+## Troubleshooting
+
+- Permission denied on backup dir
+  - Ensure host user can write to the target directory; use `sudo` if needed.
+- Out-of-memory during dump
+  - Use `-Fc` custom format and restore with `pg_restore -j N`.
+- Restore errors about missing roles/extensions
+  - Create roles beforehand; install required extensions; consider `--no-owner` as appropriate.
+
+## Security hardening checklist
+- Store backups off-host/offsite and encrypt at rest
+- Use least-privilege credentials for dump/restore where possible
+- Rotate backup retention and test restores regularly
+- Restrict access to backup directories (0700) and avoid world-readable dumps
+- Consider WAL base backups for large DBs and PITR
+
+## Uninstall / cleanup
+```bash
+# Remove backup artifacts and scripts (ensure you want to)
+sudo rm -rf /backups/postgres pg-backup.sh backup.sql.gz backup.dump
+```
+
+## FAQ
+- Q: When to use pg_dump vs base backups?
+  - A: Use `pg_dump` for logical backups/migrations; use base + WAL for PITR and large DBs.
+- Q: Can I dump all DBs?
+  - A: Yes, `pg_dumpall -U postgres | gzip > all.sql.gz` (roles included).
+
+## References
+- PostgreSQL docs — Backup/Restore: https://www.postgresql.org/docs/current/backup.html
+- pg_dump/pg_restore: https://www.postgresql.org/docs/current/app-pgdump.html

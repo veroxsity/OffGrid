@@ -13,10 +13,19 @@ lastUpdated: "2025-08-13"
 
 # Ghost Blog with Docker
 
+> TL;DR: Start MySQL + Ghost, set the `url` to your domain, reverse proxy with TLS, complete setup, and back up MySQL + `content/`.
+
+## Before you begin
+- Choose a domain (e.g., blog.example.com) and set up a reverse proxy with HTTPS
+- Generate strong DB credentials
+
+## Compose
+
 ```yaml
 services:
   mysql:
     image: mysql:8
+    container_name: ghost-mysql
     environment:
       MYSQL_ROOT_PASSWORD: change-me
       MYSQL_DATABASE: ghost
@@ -28,12 +37,19 @@ services:
 
   ghost:
     image: ghost:5
+    container_name: ghost
     environment:
+      url: https://blog.example.com
       database__client: mysql
       database__connection__host: mysql
       database__connection__user: ghost
       database__connection__password: change-me
       database__connection__database: ghost
+      # Optional email
+      # mail__transport: SMTP
+      # mail__options__service: Mailgun
+      # mail__options__auth__user: postmaster@mg.example.com
+      # mail__options__auth__pass: change-me
     ports:
       - "2368:2368"
     volumes:
@@ -43,4 +59,38 @@ services:
     restart: unless-stopped
 ```
 
-Visit `http://SERVER_IP:2368`.
+What this does: Runs MySQL with persistent data and Ghost with a persistent `content/` directory.
+
+## Verification
+- Open `http://SERVER_IP:2368` (or your HTTPS domain via proxy)
+- Visit `/ghost` to create the admin account
+
+## Backups
+```bash
+# MySQL dump + Ghost content
+docker exec ghost-mysql mysqldump -u root -pchange-me ghost | gzip > backups/ghost-db-$(date +%F).sql.gz
+sudo tar -czf backups/ghost-content-$(date +%F).tgz ./content
+```
+
+## Troubleshooting
+- 502 via proxy
+  - Proxy to `http://ghost:2368`; ensure `url` matches the public URL
+- Email not sending
+  - Configure SMTP settings under environment (mail__*) or in Ghost Admin
+- Database connection errors
+  - Confirm creds and that the `mysql` service is healthy
+
+## Security hardening checklist
+- Put behind TLS; enable HSTS and security headers at the proxy
+- Use strong DB passwords and restrict DB exposure to the internal network only
+- Limit Ghost Admin access by IP or SSO at the proxy
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./mysql ./content
+```
+
+## References
+- Ghost docs: https://ghost.org/docs/
+- Docker image: https://hub.docker.com/_/ghost

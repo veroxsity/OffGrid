@@ -14,6 +14,8 @@ testedOn: ["Ubuntu 24.04", "Debian 12"]
 
 # Yggdrasil Mesh Networking Basics (Linux)
 
+> TL;DR: Install Yggdrasil from the official repo, generate a fresh config, enable and start the service, add a few public peers, then verify you have a global Yggdrasil IPv6 and can ping other nodes. Restrict any services you expose to the yggdrasil0 interface.
+
 Yggdrasil creates an encrypted IPv6 mesh overlay between nodes.
 
 ## Install
@@ -22,6 +24,7 @@ Yggdrasil creates an encrypted IPv6 mesh overlay between nodes.
 curl -s https://repo.yggdrasil-network.github.io/install.sh | sudo bash
 sudo apt install -y yggdrasil
 ```
+What this does: Adds the upstream apt repository and installs the daemon and CLI.
 
 ## Configure
 
@@ -35,13 +38,34 @@ Edit peers in `/etc/yggdrasil.conf` to add public peers for faster convergence.
 ## Verify
 
 ```bash
-ip -6 addr show yggdrasil0
-yggdrasilctl getPeers
+ip -6 addr show yggdrasil0 | sed -n '/scope global/p'
+yggdrasilctl getPeers || sudo yggdrasilctl getPeers
+ping6 -c 3 200::/7 || true
 ```
+Expected: yggdrasil0 has a global IPv6 address; `getPeers` shows connected peers.
 
-Use the assigned IPv6 to reach other nodes directly.
+## Troubleshooting
+- Service won’t start
+  - Check config syntax: `sudo yggdrasil -useconffile /etc/yggdrasil.conf -normalise -dumpconf >/dev/null`
+  - Logs: `journalctl -u yggdrasil -n 200 --no-pager`
+- No peers/route
+  - Add multiple public peers; ensure outbound UDP/TCP not blocked by firewall.
+- Can’t reach other nodes
+  - Verify your ISP/CGNAT doesn’t block needed egress; try different peers.
 
-## Notes
+## Security hardening
+- Bind any self-hosted services to yggdrasil0 only, not 0.0.0.0/::
+- Use host firewall rules to restrict inbound to yggdrasil0 and trusted subnets
+- Keep Yggdrasil updated; rotate keys if you suspect compromise
 
-- CGNAT-friendly; no port forwarding required.
-- Restrict exposed services to Yggdrasil interface (firewall) if needed.
+## Uninstall / cleanup
+```bash
+sudo systemctl disable --now yggdrasil
+sudo apt -y purge yggdrasil
+sudo rm -f /etc/yggdrasil.conf
+```
+What this does: Stops the mesh daemon, removes the package, and deletes its config.
+
+## References
+- Official docs: https://yggdrasil-network.github.io/
+- Public peers list: https://publicpeers.neilalexander.dev/

@@ -17,6 +17,8 @@ securityLevel: "Medium"
 
 # UK Router Port Forwarding Guide
 
+> TL;DR: Find your device’s local IP, create a port-forward on your ISP router (external→internal port, correct protocol, correct internal IP), ensure the service is listening locally, then test from an external network. If it still fails, check for CGNAT/double NAT and consider VPN/tunnel alternatives.
+
 **Every UK ISP router interface is different.** This guide covers the specific steps for major UK ISP routers to set up port forwarding for self-hosting services.
 
 ## Why Port Forwarding?

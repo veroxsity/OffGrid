@@ -3,15 +3,25 @@ title: "Vaultwarden (Bitwarden) with Docker"
 description: "Lightweight Bitwarden-compatible server for passwords and secrets."
 category: "Home Servers"
 difficulty: "Beginner"
-time: "15 minutes"
+time: "20 minutes"
 ukSpecific: false
 status: "published"
-tags: ["vaultwarden","bitwarden","passwords","docker"]
+tags: ["vaultwarden","bitwarden","passwords","docker","secrets"]
 author: "Off-Grid Freedom"
 lastUpdated: "2025-08-13"
 ---
 
 # Vaultwarden (Bitwarden) with Docker
+
+Self-host the Bitwarden-compatible server with a tiny footprint.
+
+> TL;DR: Run the Vaultwarden container with a persistent `/data`, set a strong `ADMIN_TOKEN`, put it behind HTTPS, configure SMTP for invites, back up `/data` regularly.
+
+## Before you begin
+- Use a reverse proxy (NPM/Traefik) with HTTPS and a public hostname (optional but recommended)
+- Generate a strong `ADMIN_TOKEN` and store it in an `.env` file with 0600 perms
+
+## Compose
 
 ```yaml
 services:
@@ -19,12 +29,77 @@ services:
     image: vaultwarden/server:latest
     container_name: vaultwarden
     environment:
-      - ADMIN_TOKEN=change-me
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      SIGNUPS_ALLOWED: "false"        # invite-only recommended
+      DOMAIN: https://vault.example.com
+      SMTP_HOST: smtp.example.com
+      SMTP_PORT: 587
+      SMTP_SECURITY: starttls
+      SMTP_USERNAME: user@example.com
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: vault@example.com
     volumes:
       - ./data:/data
     ports:
-      - "8085:80"
+      - "8085:80"   # or omit if only via reverse proxy
     restart: unless-stopped
 ```
 
-Reverse proxy with HTTPS strongly recommended.
+What this does: Launches Vaultwarden with persistent storage, admin interface protection, and SMTP for email features.
+
+Security: Keep `.env` with `ADMIN_TOKEN` and `SMTP_PASSWORD` out of VCS.
+
+## Reverse proxy (example: NPM)
+- Proxy Host: `vault.example.com` → `http://vaultwarden:80`
+- Enable SSL, Force SSL, HTTP/2
+- Add security headers and rate limiting
+
+## Verification
+- Open `https://vault.example.com`
+- Create an account (temporarily set `SIGNUPS_ALLOWED=true` or invite via SMTP)
+- Access Admin Panel: `https://vault.example.com/admin` with your `ADMIN_TOKEN`
+
+Expected: Web vault loads and you can log in; admin panel accessible with token.
+
+## Backups
+```bash
+sudo tar -czf /backups/vaultwarden-$(date +%F).tgz ./data
+```
+Includes database, attachments, icons, and config. Test restore periodically.
+
+## Troubleshooting
+- 502 via proxy
+  - Check container is up and proxy upstream points to the right port.
+- Emails not sending
+  - Verify SMTP settings and credentials; check container logs.
+- Can’t access Admin Panel
+  - Ensure `ADMIN_TOKEN` is set and you’re using `/admin` path over HTTPS.
+
+Useful commands:
+```bash
+docker logs -f vaultwarden
+sqlite3 ./data/db.sqlite3 '.tables' || true
+```
+
+## Security hardening checklist
+- Enforce HTTPS only; HSTS at the proxy
+- Disable public signups; use invites
+- Strong `ADMIN_TOKEN`; store outside compose file (.env)
+- Regular backups and offsite copies
+- Consider fail2ban/CrowdSec on the reverse proxy
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## FAQ
+- Q: Migrate from Bitwarden cloud?
+  - A: Export from Bitwarden JSON/Encrypted and import into Vaultwarden web vault.
+- Q: Mobile apps work?
+  - A: Yes; set Server URL to your domain.
+
+## References
+- Vaultwarden docs: https://github.com/dani-garcia/vaultwarden
+- Bitwarden clients: https://bitwarden.com/download/

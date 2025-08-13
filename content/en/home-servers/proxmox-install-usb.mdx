@@ -13,19 +13,39 @@ lastUpdated: "2025-08-13"
 
 # Proxmox VE Install (USB Boot)
 
-## Create installer
+> TL;DR: Write the Proxmox ISO to a USB, boot and install (ZFS mirror optional), then access the web UI at 8006 and run post-install updates.
 
-- Download ISO from proxmox.com.
-- Use Rufus (Windows) or `dd` (Linux/macOS) to write to USB.
+## Create installer
+- Download ISO from proxmox.com
+- Use Rufus (Windows) or `dd` (Linux/macOS) to write to USB
 
 ## BIOS/UEFI
-
-- Enable virtualization (VT-x/AMD-V) and IOMMU if needed.
+- Enable virtualization (VT-x/AMD-V) and IOMMU if needed
+- Set boot order to USB first for installation
 
 ## Install steps
+- Boot from USB → Graphical install
+- Choose filesystem (ZFS mirror if using multiple disks)
+- Create strong root password and note IP
 
-- Boot from USB → Graphical install.
-- Set ZFS (mirror) if using multiple disks.
-- Create strong root password and note IP.
+## Verification
+- Visit `https://SERVER_IP:8006`
+- Log in as root@pam and ensure nodes and storage are visible
 
-Visit `https://SERVER_IP:8006` to finish setup.
+## Post-install
+- Update packages: `apt update && apt full-upgrade`
+- Set a static IP if desired; configure a bridge (vmbr0) for VMs
+
+## Troubleshooting
+- Installer not booting
+  - Recreate the USB; verify ISO checksum
+- No network in UI
+  - Check bridge config and NIC drivers
+
+## Security hardening checklist
+- Enforce HTTPS with valid certificate; set HSTS if reverse proxied
+- Create a non-root user and use sudo where possible
+- Restrict 8006 to trusted IPs; set up a VPN for remote access
+
+## References
+- Proxmox docs: https://pve.proxmox.com/pve-docs/

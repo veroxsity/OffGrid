@@ -13,13 +13,30 @@ lastUpdated: "2025-08-13"
 
 # Fail2ban for Nginx Proxy Manager Logs (Docker Host)
 
+Ban abusive IPs hitting your reverse proxy by parsing NPM access logs with Fail2ban running on the host.
+
+> TL;DR: Install Fail2ban, create a jail targeting NPM access logs, craft a filter to match bad requests, restart Fail2ban, and verify bans. Ensure the host can read NPM’s log volume path.
+
+## Before you begin
+- NPM running with logs persisted on the host (e.g., `/srv/npm/logs/*access*.log`)
+- Root/sudo access on the Docker host
+
+## Security model and defaults
+- Fail2ban reacts to abusive patterns and inserts temporary firewall rules
+- Keep ban times modest to avoid blocking legitimate users
+- Place NPM behind a CDN (optional) and ensure real client IPs are logged
+
 ## Install
 
 ```bash
-sudo apt install -y fail2ban
+sudo apt update && sudo apt install -y fail2ban
 ```
 
+What this does: Installs Fail2ban service and prepares default config directories at /etc/fail2ban.
+
 ## Jail and filter
+
+Ensure your NPM logs path matches the jail’s `logpath`.
 
 `/etc/fail2ban/jail.d/npm.local`:
 
@@ -38,12 +55,66 @@ findtime = 10m
 
 ```ini
 [Definition]
+# Example: ban repeat 403s on any path (tune as needed)
 failregex = <HOST> - .* "(GET|POST) /.*" 403
 ```
 
-Reload:
+Reload and verify:
 
 ```bash
 sudo systemctl restart fail2ban
 sudo fail2ban-client status npm-abuse
 ```
+
+## Verify bans and logs
+
+```bash
+sudo fail2ban-client status
+sudo fail2ban-client status npm-abuse
+sudo iptables -S | grep -i f2b || sudo nft list ruleset | grep -i f2b
+```
+
+## Troubleshooting
+
+- No bans appearing
+  - Check `logpath` matches real NPM access log location; verify permissions.
+  - Adjust `failregex` to match your NPM log format.
+- All traffic shows as the proxy’s IP
+  - Ensure NPM logs the real client IP (`X-Forwarded-For`/`CF-Connecting-IP` handling).
+- Using nftables instead of iptables
+  - Fail2ban supports nftables; confirm backend in `/etc/fail2ban/jail.conf` or `jail.local`.
+
+## Security hardening checklist
+- Tailor filters to target real abuse patterns (e.g., auth brute force, wp-login, admin paths)
+- Combine with Geo/IP allowlists where appropriate
+- Keep banlist short; prefer rate limits at the proxy/CDN when available
+
+## Backups
+
+Back up custom jails and filters so you can restore after upgrades.
+
+```bash
+sudo mkdir -p /root/fail2ban-backups
+sudo cp -a /etc/fail2ban/jail.d /root/fail2ban-backups/jail.d-$(date +%F)
+sudo cp -a /etc/fail2ban/filter.d/npm-abuse.conf /root/fail2ban-backups/npm-abuse-$(date +%F).conf
+```
+
+Restore by copying files back to `/etc/fail2ban/` and restarting the service.
+
+## Uninstall / rollback
+
+```bash
+sudo systemctl disable --now fail2ban
+sudo apt -y purge fail2ban
+sudo rm -f /etc/fail2ban/jail.d/npm.local /etc/fail2ban/filter.d/npm-abuse.conf
+```
+
+## FAQ
+- Q: Can I use Cloudflare IPs safely with Fail2ban?
+  - A: Yes, but ensure you log real client IPs and whitelist Cloudflare egress IPs if needed.
+- Q: Can I feed Fail2ban with JSON logs?
+  - A: Yes, with appropriate regex or `journalmatch` backends.
+
+## References
+- Fail2ban docs: https://fail2ban.readthedocs.io/
+- NPM docs: https://nginxproxymanager.com/guide/

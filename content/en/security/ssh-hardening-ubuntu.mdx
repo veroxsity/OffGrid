@@ -18,12 +18,27 @@ prerequisites:
 
 Secure SSH by using keys only and banning brute-force attempts.
 
+> TL;DR: Create an ed25519 SSH key, install it on the server, disable password auth and root login, enable Fail2ban, verify key-only access, and keep a console session open during changes.
+
+## Before you begin
+- Ensure you have sudo and console access (so you can recover if locked out)
+- Decide your SSH username and (optionally) a custom SSH port
+- If using a firewall, allow SSH before enabling strict rules
+
+## Security model and defaults
+- Prefer key-based auth (ed25519) over passwords
+- Disable root SSH login and password authentication
+- Add Fail2ban to slow/ban brute-force attempts
+- Keep an existing SSH session open while testing changes
+
 ## 1) Create an SSH key (on your client)
 
 ```bash
 ssh-keygen -t ed25519 -C "you@host"
 ssh-copy-id -i ~/.ssh/id_ed25519.pub user@server
 ```
+
+What this does: Generates a modern ed25519 keypair and installs the public key onto the server’s `~/.ssh/authorized_keys`.
 
 If `ssh-copy-id` isn’t available, paste the public key into `~/.ssh/authorized_keys` on the server.
 
@@ -48,7 +63,7 @@ Apply:
 sudo systemctl restart ssh
 ```
 
-Test a new session before closing your current one to avoid lockout.
+What this does: Enforces key-only auth, prevents direct root login, and restarts the SSH daemon. Test a new session before closing your current one to avoid lockout.
 
 ## 3) Install and configure Fail2ban
 
@@ -76,6 +91,8 @@ sudo systemctl enable --now fail2ban
 sudo fail2ban-client status sshd
 ```
 
+What this does: Enables a basic SSH jail that bans repeated failed logins and allows local/LAN IPs.
+
 ## Optional: Change SSH port
 
 ```bash
@@ -86,6 +103,27 @@ sudo systemctl restart ssh
 sudo ufw allow 2222/tcp
 ```
 
+What this does: Moves SSH to a non-default port (security through obscurity isn’t a replacement for keys, but it reduces noise). Update firewall rules accordingly.
+
+## Verify hardening
+
+- Confirm password auth is rejected and key auth works
+
+```bash
+# Attempt password-only auth (should fail)
+ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no user@server || echo "Password auth disabled as expected"
+
+# Normal key-based login (should succeed)
+ssh user@server 'echo ok'
+```
+
+- Check Fail2ban status/logs
+
+```bash
+sudo fail2ban-client status sshd
+sudo journalctl -u fail2ban -n 100 --no-pager
+```
+
 ## Monitoring
 
 ```bash
@@ -94,4 +132,42 @@ sudo fail2ban-client status
 sudo fail2ban-client status sshd
 ```
 
-You now have a key-only SSH with basic brute-force protection.
+## Troubleshooting
+
+- Locked out after disabling passwords
+  - Use console/KVM/VM console; re-enable `PasswordAuthentication yes` temporarily and restart ssh.
+- Key not accepted
+  - Permissions: `~/.ssh` (700) and `authorized_keys` (600); correct ownership.
+- Fail2ban not banning
+  - Ensure logs are at `/var/log/auth.log` and jail is enabled.
+- Firewall blocking
+  - Allow your SSH port before enabling strict rules.
+
+## Uninstall / rollback
+
+```bash
+# Revert sshd settings (edit and restart)
+sudo nano /etc/ssh/sshd_config
+# Set: PasswordAuthentication yes (if you must), PermitRootLogin prohibit-password
+sudo systemctl restart ssh
+
+# Disable and remove Fail2ban
+sudo systemctl disable --now fail2ban
+sudo apt -y purge fail2ban
+sudo rm -f /etc/fail2ban/jail.local
+```
+
+What this does: Restores password auth (not recommended), stops/removes Fail2ban, and deletes the custom jail.
+
+## FAQ
+- Q: How do I allow only specific users via SSH?
+  - A: Add `AllowUsers user1 user2` to `sshd_config`.
+- Q: Where are failed login attempts logged?
+  - A: `/var/log/auth.log` on Ubuntu.
+- Q: How do I whitelist my IP from bans?
+  - A: Add it to `ignoreip` in `jail.local`.
+
+## References
+- sshd_config(5): https://man7.org/linux/man-pages/man5/sshd_config.5.html
+- OpenSSH Keys: https://www.ssh.com/academy/ssh/keygen
+- Fail2ban docs: https://fail2ban.readthedocs.io/

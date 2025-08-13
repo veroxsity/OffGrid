@@ -13,6 +13,26 @@ lastUpdated: "2025-08-13"
 
 # MinIO (S3-compatible) with Docker
 
+Run an S3-compatible object storage for self-hosted apps and backups.
+
+> TL;DR: Launch MinIO with Docker, set strong root credentials, access the console on 9001, create a bucket and access key/secret, then front it with HTTPS via a reverse proxy. Back up the data directory.
+
+## Before you begin
+- Docker + Compose installed; server updated
+- Plan where to store data (e.g., `~/minio/data` on a large disk)
+- Decide if access is LAN-only or via HTTPS reverse proxy
+
+```bash
+sudo apt update && sudo apt -y install ca-certificates curl jq
+```
+
+What this does: Ensures minimal tooling for checks later.
+
+## Security model and defaults
+- Use strong, unique `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`
+- Prefer LAN-only exposure; if public, put MinIO behind TLS with a reverse proxy (Caddy/Traefik/NPM)
+- Use per-application access keys with least-privilege bucket policies
+
 ## Compose
 
 ```yaml
@@ -32,6 +52,108 @@ services:
     restart: unless-stopped
 ```
 
-Access the console at `http://SERVER_IP:9001`.
+What this does: Starts MinIO, persists objects in `./data`, exposes the S3 API on 9000 and the Admin Console on 9001.
 
-Create a bucket and an access key/secret for apps.
+Start it:
+
+```bash
+mkdir -p ~/minio && cd ~/minio
+# Save compose as docker-compose.yml in this folder if not already
+# then bring it up
+docker compose up -d
+```
+
+## Verify
+
+```bash
+# Containers are running
+docker compose ps
+
+# Console reachable
+curl -I http://SERVER_IP:9001 || true
+
+# S3 API reachable
+curl -I http://SERVER_IP:9000 || true
+```
+
+Expected: HTTP headers returned for both ports; login works at `http://SERVER_IP:9001` with your root creds.
+
+## Create a bucket and access keys
+
+- Log in to the Console → Buckets → Create Bucket (e.g., `backups`)
+- Create a Service Account (access key/secret) with policy limited to that bucket
+
+Optional CLI with `mc` (MinIO client):
+```bash
+# Install mc (Linux x86_64 example)
+curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o mc
+chmod +x mc && sudo mv mc /usr/local/bin/
+
+mc alias set local http://SERVER_IP:9000 admin change-me-strong
+mc mb local/backups
+mc admin user svcacct add local admin --access-key YOURKEY --secret-key YOURSECRET
+```
+
+## Reverse proxy (HTTPS)
+
+Example Caddyfile:
+```bash
+s3.example.com {
+  reverse_proxy 127.0.0.1:9000
+}
+console.example.com {
+  reverse_proxy 127.0.0.1:9001
+}
+```
+
+What this does: Provides automatic HTTPS and keeps MinIO off the public interface.
+
+## Backups
+
+Back up the object data and any configuration files you store alongside it:
+```bash
+cd ~/minio
+sudo tar -czf /backups/minio-$(date +%F).tgz ./data
+```
+
+Note: Replication/versioning can protect against accidental deletes; consider enabling in Console → Buckets.
+
+## Troubleshooting
+
+- 403 AccessDenied on S3 API
+  - Verify access key/secret and policy permissions; check bucket name and region (MinIO uses path-style by default).
+- Console unreachable
+  - Confirm port 9001 is published and not blocked by firewall.
+- Apps require HTTPS S3 endpoints
+  - Use a reverse proxy with valid certs; update app endpoint URLs accordingly.
+
+Logs:
+```bash
+docker compose logs --tail=200 minio
+```
+
+## Security hardening checklist
+- Rotate service account keys regularly; avoid using root creds in apps
+- Apply least-privilege bucket policies; disable public buckets unless required
+- Serve only over HTTPS if accessed outside LAN
+- Keep MinIO updated
+
+## Uninstall / rollback
+```bash
+cd ~/minio
+docker compose down
+# Optional: remove data (ensure backups!)
+sudo rm -rf ./data
+```
+
+What this does: Stops MinIO and optionally removes stored objects.
+
+## FAQ
+- Q: Path-style vs virtual-hosted-style URLs?
+  - A: MinIO supports path-style by default (http://host:9000/bucket/object). Some SDKs need explicit configuration.
+- Q: Can I enable versioning?
+  - A: Yes, per-bucket in the Console; useful for backups.
+
+## References
+- MinIO Docs: https://min.io/docs/
+- MinIO Client (mc): https://min.io/docs/minio/linux/reference/minio-mc.html

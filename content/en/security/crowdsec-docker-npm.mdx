@@ -3,7 +3,7 @@ title: "CrowdSec with Nginx Proxy Manager (Docker)"
 description: "Crowd-sourced protection for your exposed services by analyzing NPM logs and blocking offenders."
 category: "Security"
 difficulty: "Intermediate"
-time: "30 minutes"
+time: "35 minutes"
 ukSpecific: false
 status: "published"
 tags: ["crowdsec","nginx-proxy-manager","security","bouncer","docker"]
@@ -14,9 +14,15 @@ testedOn: ["Ubuntu 24.04"]
 
 # CrowdSec with Nginx Proxy Manager (Docker)
 
-Detect and block malicious traffic using crowdsourced signals.
+Detect and block malicious traffic using crowdsourced signals by parsing your NPM logs and pushing bans to a firewall bouncer.
 
-## 1) Compose
+> TL;DR: Run CrowdSec container with NPM logs mounted, configure acquisition to parse them as nginx, generate an LAPI key, run a firewall bouncer with that key, verify decisions are applied, and keep both updated.
+
+## Before you begin
+- NPM is installed with access logs enabled and written to a host path
+- You can bind-mount that log path into the CrowdSec container
+
+## 1) Compose stack
 
 ```yaml
 services:
@@ -26,7 +32,7 @@ services:
     volumes:
       - ./crowdsec/data:/var/lib/crowdsec/data
       - ./crowdsec/config:/etc/crowdsec
-      - ./npm/logs:/var/log/npm:ro  # map NPM logs (ensure you bind-mount NPM logs from host)
+      - ./npm/logs:/var/log/npm:ro  # bind-mount NPM logs
     environment:
       - TZ=Europe/London
       - COLLECTIONS=crowdsecurity/nginx
@@ -43,11 +49,11 @@ services:
     restart: unless-stopped
 ```
 
-Generate an API key inside `crowdsec` and store as `LAPI_KEY`.
+What this does: CrowdSec ingests logs from NPM and shares decisions via LAPI; the firewall bouncer enforces them on the host.
 
-## 2) Configure acquisition
+## 2) Configure acquisition for NPM logs
 
-Create `/etc/crowdsec/acquis.yaml` inside the container (or mount it) to parse NPM logs:
+Create or edit `/etc/crowdsec/acquis.yaml` (inside container or mounted):
 
 ```yaml
 filenames:
@@ -56,17 +62,70 @@ labels:
   type: nginx
 ```
 
-Restart CrowdSec.
+Restart CrowdSec after changes.
 
-## 3) Verify
+## 3) Generate an LAPI key and verify decisions
 
 ```bash
-docker logs crowdsec -f
-sudo cscli metrics
-sudo cscli decisions list
+docker exec -it crowdsec cscli bouncers add cs-firewall-bouncer
+# Save the key as LAPI_KEY in your .env
+
+docker exec -it crowdsec cscli metrics
+
+docker exec -it crowdsec cscli decisions list
 ```
 
-## Notes
+Expected: Metrics show nginx parser running; decisions appear after simulated bad traffic.
 
-- Ensure NPM writes access logs to a host path bound to `./npm/logs`.
-- Alternatively use the Cloudflare bouncer if you proxy via Cloudflare.
+## Troubleshooting
+- No logs parsed
+  - Confirm NPM access logs are enabled and the host path is correct; check container mount.
+- Bouncer cannot connect
+  - Verify `CROWDSEC_LAPI_URL` and that CrowdSec’s LAPI listens on 8080; check container networking.
+- Decisions not enforced
+  - Ensure bouncer runs privileged or with required capabilities; check its logs.
+
+Useful commands:
+```bash
+docker logs -f crowdsec
+journalctl -u cs-firewall-bouncer -n 200 --no-pager || true
+```
+
+## Security hardening checklist
+- Limit LAPI exposure to localhost; do not publish it externally
+- Rotate LAPI keys and store them in `.env` with 0600 perms
+- Consider Cloudflare or Nginx bouncers if traffic is mostly via those layers
+
+## Backups
+
+Back up CrowdSec configuration, lists, and the data directory (decisions/history). Stop CrowdSec briefly for a consistent snapshot.
+
+```bash
+mkdir -p ./backups
+# Stop to quiesce writes
+docker compose stop crowdsec
+# Config and parsers
+tar -czf ./backups/crowdsec-config-$(date +%F).tar.gz -C ./crowdsec/config .
+# Runtime data (local DB, decisions)
+tar -czf ./backups/crowdsec-data-$(date +%F).tar.gz -C ./crowdsec/data .
+# Start again
+docker compose start crowdsec
+```
+
+Restore by extracting archives back into the mounted paths, then `docker compose up -d`.
+
+## Uninstall / rollback
+```bash
+docker compose down
+rm -rf ./crowdsec ./npm/logs
+```
+
+## FAQ
+- Q: Can I protect multiple hosts?
+  - A: Use Cloudflare bouncer for edge-level decisions or deploy agents per host.
+- Q: Will this block legit users?
+  - A: Collections and scenarios aim to reduce false positives; review decisions, add allowlists as needed.
+
+## References
+- CrowdSec docs: https://docs.crowdsec.net/
+- NPM docs: https://nginxproxymanager.com/

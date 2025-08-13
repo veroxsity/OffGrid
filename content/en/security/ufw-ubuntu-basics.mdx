@@ -14,57 +14,156 @@ testedOn: ["Ubuntu 24.04", "Ubuntu 22.04"]
 
 # UFW Firewall Basics on Ubuntu
 
-UFW makes iptables manageable. Default deny, then allow only what you need.
+Lock down your server with a privacy-first default: deny unsolicited inbound, allow only what you need.
 
-## 1) Install and check status
+> TL;DR: Install UFW, set default deny incoming/allow outgoing, allow SSH and required app ports, enable UFW, verify, and review logs. Add Docker notes if running containers.
+
+## Before you begin
+- Ensure you have sudo and console access (to recover if locked out)
+- Know your SSH port (default 22 or custom)
+- List services that must be reachable (e.g., 80/443 for a proxy)
 
 ```bash
-sudo apt update
-sudo apt install -y ufw
-sudo ufw status verbose
+sudo apt update && sudo apt -y install ufw
+sudo ufw status verbose || true
 ```
 
-## 2) Default deny
+What this does: Installs UFW and prints the current status without changing rules.
+
+## Security model and defaults
+- Default deny inbound; default allow outbound
+- Explicitly allow only required ports from the necessary sources (CIDRs)
+- Keep the rule set simple and auditable; avoid broad “allow any”
+
+## 1) Set sane defaults
 
 ```bash
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 ```
 
-## 3) Allow common services
+What this does: Drops unsolicited inbound while leaving outbound open so updates/services continue to work.
+
+## 2) Allow management and application ports
 
 ```bash
-# SSH (change port if you’ve customized it)
-sudo ufw allow ssh
+# SSH (use OpenSSH profile or specify the port)
+sudo ufw allow OpenSSH
+# OR if you changed SSH port
+# sudo ufw allow 2222/tcp
 
-# Web
+# Web (if running a reverse proxy)
 sudo ufw allow http
 sudo ufw allow https
 
-# Example: WireGuard
+# Example: WireGuard VPN
 sudo ufw allow 51820/udp
 ```
 
-## 4) Enable UFW
+What this does: Explicitly permits only the services you need to expose.
+
+## 3) Enable UFW (after rules are in place)
 
 ```bash
 sudo ufw enable
 sudo ufw status numbered
 ```
 
-## 5) Manage rules
+What this does: Activates enforcement and prints rules with numbers for easy deletes.
+
+## 4) Manage and refine rules
 
 ```bash
-# Delete by number
-sudo ufw status numbered
+# Delete a rule by number (see numbers from status)
 sudo ufw delete 2
 
-# Allow a subnet
+# Allow a trusted subnet to SSH
 sudo ufw allow from 192.168.1.0/24 to any port 22 proto tcp
+
+# Rate-limit SSH to slow brute force
+yes | sudo ufw limit ssh
+
+# Increase log verbosity (optional)
+sudo ufw logging medium
 ```
 
-## Tips
+What this does: Maintains tight access and improves visibility while mitigating brute force.
 
-- Place UFW rules before enabling to avoid lockouts.
-- Use `limit ssh` to rate-limit SSH.
-- For Docker, consider `ufw-docker` helpers or guard exposed ports carefully.
+## Verify the firewall
+
+```bash
+# Show active rules and policy
+sudo ufw status verbose
+
+# Confirm listeners only on allowed ports
+ss -tulpn | grep -E ':22|:80|:443|:51820' || true
+```
+
+Expected: Only intentional ports are reachable; default incoming policy is deny.
+
+## Docker considerations
+
+By default, Docker manipulates iptables and may bypass UFW rules for published ports.
+- Prefer user-defined Docker networks and avoid `--publish` except via a reverse proxy.
+- To keep UFW authoritative, consider using the DOCKER-USER chain or a helper (e.g., ufw-docker) to enforce policies.
+- If exposing a proxy (80/443), keep app containers unexposed and only publish the proxy.
+
+## Backups
+
+Export and restore UFW rules and application profiles.
+
+```bash
+# Export current ruleset to a script you can re-run later
+sudo ufw status numbered > ~/ufw-rules-$(date +%F).txt
+
+# Backup application profiles (service definitions)
+sudo tar -czf ~/ufw-apps-$(date +%F).tar.gz -C /etc/ufw/applications.d .
+```
+
+Restore approach:
+- Recreate rules by reading the saved status and issuing the same allow/deny commands.
+- Extract application profiles back into `/etc/ufw/applications.d` and run `sudo ufw app update all`.
+
+## Troubleshooting
+
+- Locked out of SSH
+  - Use console/ILO/VM console to access; add `ufw allow OpenSSH`; re-enable.
+- Rules not taking effect
+  - Check `sudo ufw status verbose`; ensure UFW is enabled and no higher-priority rules override.
+- Docker ports reachable despite UFW
+  - Avoid `-p 0.0.0.0:PORT:PORT` on app containers; front them with a proxy or add DOCKER-USER chain rules.
+- Too much log noise
+  - `sudo ufw logging low` or disable logging entirely.
+
+Useful logs/commands:
+```bash
+sudo journalctl -u ufw -n 100 --no-pager
+sudo iptables-save | grep -E 'ufw|DOCKER-USER'
+```
+
+## Uninstall / rollback
+
+```bash
+# Disable UFW (keeps rules but stops enforcement)
+sudo ufw disable
+
+# Reset to factory defaults (DANGEROUS: removes all rules)
+sudo ufw reset
+
+# Optional: remove package
+sudo apt -y purge ufw
+```
+
+What this does: Disables enforcement, optionally wipes rules, and removes UFW if desired.
+
+## FAQ
+- Q: How do I allow a single IP to reach a port?
+  - A: `sudo ufw allow from 203.0.113.5 to any port 443 proto tcp`.
+- Q: Does UFW persist across reboots?
+  - A: Yes. Enabled UFW and its rules persist by default.
+- Q: How do I see which rule matched?
+  - A: Increase logging and inspect `journalctl -u ufw` and `dmesg` (look for UFW kernel log entries).
+
+## References
+- Ubuntu Community Help Wiki — UFW: https://help.ubuntu.com/community/UFW
+- Debian Wiki — UFW: https://wiki.debian.org/UncomplicatedFirewall

@@ -13,11 +13,23 @@ lastUpdated: "2025-08-13"
 
 # Forgejo (Git hosting) with Docker
 
+> TL;DR: Run Forgejo with persistent `/data`, set correct `ROOT_URL` and SSH settings, complete setup, disable open signups, and back up regularly.
+
+## Compose
+
 ```yaml
 services:
   forgejo:
     image: codeberg.org/forgejo/forgejo:latest
+    container_name: forgejo
     user: "1000:1000"
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - FORGEJO__server__ROOT_URL=https://git.example.com/
+      - FORGEJO__server__SSH_DOMAIN=git.example.com
+      - FORGEJO__server__SSH_PORT=223
+      - TZ=Europe/London
     ports:
       - "3001:3000"
       - "223:22"
@@ -26,4 +38,31 @@ services:
     restart: unless-stopped
 ```
 
-Open `http://SERVER_IP:3001`.
+## Verification
+- Open `http://SERVER_IP:3001` (or via proxy domain) and finish setup
+- Create admin; confirm clone URLs show correct domain/port
+
+## Backups
+```bash
+sudo tar -czf /backups/forgejo-$(date +%F).tgz ./data
+```
+
+## Troubleshooting
+- SSH not reachable
+  - Check host firewall and port mapping; verify SSH settings
+- Proxy 502
+  - Confirm container is healthy and port 3000 is exposed to proxy
+
+## Security hardening checklist
+- Disable public registration; require 2FA
+- Use TLS via reverse proxy; enable HSTS
+- Store repos on a dedicated disk with backups
+
+## Uninstall / cleanup
+```bash
+docker compose down
+rm -rf ./data
+```
+
+## References
+- Forgejo docs: https://forgejo.org/docs/
